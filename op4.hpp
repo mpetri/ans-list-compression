@@ -3,27 +3,38 @@
 #include "binpackinghelpers.h"
 #include "simple16.hpp"
 #include "util.hpp"
+#include "vbyte.hpp"
 
 #include <assert.h>
 
-uint32_t gccbits(const uint32_t v) {
+/* taken from FastPfor */
+
+/**
+ * This code is released under the
+ * Apache License Version 2.0 http://www.apache.org/licenses/.
+ */
+
+uint32_t gccbits(const uint32_t v)
+{
     return v == 0 ? 0 : 32 - __builtin_clz(v);
 }
 
 template <class iterator>
-uint32_t maxbits(const iterator& begin, const iterator& end) {
+uint32_t maxbits(const iterator& begin, const iterator& end)
+{
     uint32_t accumulator = 0;
     for (iterator k = begin; k != end; ++k) {
         accumulator |= *k;
     }
     return gccbits(accumulator);
 }
-constexpr uint32_t div_roundup(uint32_t v, uint32_t divisor) {
+constexpr uint32_t div_roundup(uint32_t v, uint32_t divisor)
+{
     return (v + (divisor - 1)) / divisor;
 }
 
 template <uint32_t t_block_size = 128> struct op4 {
-  private:
+private:
     enum {
         PFORDELTA_B = 6,
         PFORDELTA_NEXCEPT = 10,
@@ -34,21 +45,22 @@ template <uint32_t t_block_size = 128> struct op4 {
         BlockSize = t_block_size
     };
 
-  private:
+private:
     static_assert(t_block_size % PACKSIZE == 0, "blocksize incorrect");
 
-    std::vector<uint32_t> possLogs = {0, 1,  2,  3,  4,  5,  6,  7, 8,
-                                      9, 10, 11, 12, 13, 16, 20, 32};
-    std::vector<uint32_t> exceptionsPositions =
-        std::vector<uint32_t>(BlockSize);
+    std::vector<uint32_t> possLogs
+        = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 20, 32 };
+    std::vector<uint32_t> exceptionsPositions
+        = std::vector<uint32_t>(BlockSize);
     std::vector<uint32_t> exceptionsValues = std::vector<uint32_t>(BlockSize);
-    std::vector<uint32_t> exceptions =
-        std::vector<uint32_t>(4 * BlockSize + TAIL_MERGIN + 1);
+    std::vector<uint32_t> exceptions
+        = std::vector<uint32_t>(4 * BlockSize + TAIL_MERGIN + 1);
     std::vector<uint32_t> tobecoded = std::vector<uint32_t>(BlockSize);
     Simple16<false> simple16;
 
-  private:
-    uint32_t tryB(uint32_t b, const uint32_t* in, uint32_t len) {
+private:
+    uint32_t tryB(uint32_t b, const uint32_t* in, uint32_t len)
+    {
         assert(b <= 32);
         if (b == 32) {
             return len;
@@ -80,14 +92,15 @@ template <uint32_t t_block_size = 128> struct op4 {
                 exceptions[i + curExcept] = excVal;
             }
             size_t encodedExceptions_sz;
-            simple16.fakeencodeArray(&exceptions[0], 2 * curExcept,
-                                     encodedExceptions_sz);
+            simple16.fakeencodeArray(
+                &exceptions[0], 2 * curExcept, encodedExceptions_sz);
             size += static_cast<uint32_t>(encodedExceptions_sz);
         }
         return size;
     }
 
-    uint32_t findBestB(const uint32_t* in, uint32_t len) {
+    uint32_t findBestB(const uint32_t* in, uint32_t len)
+    {
         uint32_t b = possLogs.back();
         assert(b == 32);
         uint32_t bsize = tryB(b, in, len);
@@ -95,7 +108,7 @@ template <uint32_t t_block_size = 128> struct op4 {
         uint32_t i = 0;
         while (mb > 28 + possLogs[i])
             ++i; // some schemes such as Simple16 don't code numbers greater
-                 // than 28
+        // than 28
 
         for (; i < possLogs.size() - 1; i++) {
             const uint32_t csize = tryB(possLogs[i], in, len);
@@ -108,7 +121,8 @@ template <uint32_t t_block_size = 128> struct op4 {
         return b;
     }
 
-    void encodeBlock(const uint32_t* in, uint32_t* out, size_t& nvalue) {
+    void encodeBlock(const uint32_t* in, uint32_t* out, size_t& nvalue)
+    {
         const uint32_t len = BlockSize;
 
         uint32_t b = findBestB(in, len);
@@ -146,12 +160,12 @@ template <uint32_t t_block_size = 128> struct op4 {
                 }
 
                 simple16.encodeArray(&exceptions[0], 2 * nExceptions, out + 1,
-                                     encodedExceptions_sz);
+                    encodedExceptions_sz);
             }
 
-            *out++ = (b << (PFORDELTA_NEXCEPT + PFORDELTA_EXCEPTSZ)) |
-                     (nExceptions << PFORDELTA_EXCEPTSZ) |
-                     static_cast<uint32_t>(encodedExceptions_sz);
+            *out++ = (b << (PFORDELTA_NEXCEPT + PFORDELTA_EXCEPTSZ))
+                | (nExceptions << PFORDELTA_EXCEPTSZ)
+                | static_cast<uint32_t>(encodedExceptions_sz);
             /* Write exceptional values */
 
             out += static_cast<uint32_t>(encodedExceptions_sz);
@@ -169,21 +183,22 @@ template <uint32_t t_block_size = 128> struct op4 {
         }
     }
 
-    const uint32_t* decodeBlock(const uint32_t* in, uint32_t* out,
-                                size_t& nvalue) {
+    const uint32_t* decodeBlock(
+        const uint32_t* in, uint32_t* out, size_t& nvalue)
+    {
         const uint32_t* const initout(out);
         const uint32_t b = *in >> (32 - PFORDELTA_B);
-        const size_t nExceptions =
-            (*in >> (32 - (PFORDELTA_B + PFORDELTA_NEXCEPT))) &
-            ((1 << PFORDELTA_NEXCEPT) - 1);
-        const uint32_t encodedExceptionsSize =
-            *in & ((1 << PFORDELTA_EXCEPTSZ) - 1);
+        const size_t nExceptions
+            = (*in >> (32 - (PFORDELTA_B + PFORDELTA_NEXCEPT)))
+            & ((1 << PFORDELTA_NEXCEPT) - 1);
+        const uint32_t encodedExceptionsSize
+            = *in & ((1 << PFORDELTA_EXCEPTSZ) - 1);
 
         size_t twonexceptions = 2 * nExceptions;
         ++in;
         if (encodedExceptionsSize > 0)
-            simple16.decodeArray(in, encodedExceptionsSize, &exceptions[0],
-                                 twonexceptions);
+            simple16.decodeArray(
+                in, encodedExceptionsSize, &exceptions[0], twonexceptions);
         assert(twonexceptions >= 2 * nExceptions);
         in += encodedExceptionsSize;
 
@@ -204,8 +219,9 @@ template <uint32_t t_block_size = 128> struct op4 {
         return in;
     }
 
-  public:
-    inline size_t encode(const uint32_t* in, size_t n, uint32_t* out) {
+public:
+    inline size_t encode(const uint32_t* in, size_t n, uint32_t* out)
+    {
         size_t num_blocks = n / t_block_size;
         size_t total_u32_written = 0;
         for (size_t i = 0; i < num_blocks; i++) {
@@ -215,21 +231,31 @@ template <uint32_t t_block_size = 128> struct op4 {
             out += u32_written;
             in += t_block_size;
         }
+        size_t left = n % t_block_size;
+        if (left) {
+            total_u32_written += vbyte_encode(in, left, out);
+        }
         return total_u32_written;
     }
 
-    inline void decode(const uint32_t* in, size_t encoding_u32, uint32_t* out,
-                       size_t n) {
+    inline void decode(
+        const uint32_t* in, size_t enc_u32, uint32_t* out, size_t n)
+    {
         size_t num_blocks = n / t_block_size;
         size_t num_encoded = t_block_size;
         for (size_t i = 0; i < num_blocks; i++) {
             in = decodeBlock(in, out, num_encoded);
             out += t_block_size;
         }
+        uint32_t left = n % t_block_size;
+        if (left) {
+            vbyte_decode(in, out, left);
+        }
     }
 };
 
-size_t op4_encode(const uint32_t* in, size_t n, uint32_t* out) {
+size_t op4_encode(const uint32_t* in, size_t n, uint32_t* out)
+{
     // (1) write length later
     uint32_t* output_len = out;
     out++;
@@ -240,7 +266,8 @@ size_t op4_encode(const uint32_t* in, size_t n, uint32_t* out) {
     return written_u32 + 1; // for encoding size and list len
 }
 
-size_t op4_decode(const uint32_t* in, uint32_t* out, uint32_t list_len) {
+size_t op4_decode(const uint32_t* in, uint32_t* out, uint32_t list_len)
+{
     uint32_t encoding_u32 = *in++;
     static op4<128> op4_coder;
     op4_coder.decode(in, encoding_u32, out, list_len);

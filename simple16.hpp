@@ -2,6 +2,7 @@
 
 #include "util.hpp"
 #include <assert.h>
+#include <stdexcept>
 
 /* taken from FastPfor */
 

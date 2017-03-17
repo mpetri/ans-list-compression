@@ -19,6 +19,9 @@ size_t qmx_encode(const uint32_t* in, size_t n, uint32_t* out)
         ++out;
         written_u32++;
     }
+    if (written_u32 != 1) {
+        fprintf(stderr, "%lu alignment u32 = %lu\n", n, written_u32 - 1);
+    }
 
     size_t qmx_bytes = 0;
     qmx_coder.encodeArray(in, n, out, &qmx_bytes);
@@ -36,9 +39,15 @@ size_t qmx_decode(const uint32_t* in, uint32_t* out, uint32_t list_len)
         ++in;
         decoded_u32++;
     }
+    if (decoded_u32 != 1) {
+        fprintf(stderr, "%lu alignment u32 = %lu -> %llu\n", list_len,
+            decoded_u32 - 1, uint64_t(in));
+    }
 
     static compress_qmx qmx_coder;
     qmx_coder.decodeArray(in, qmx_bytes, out, list_len);
     qmx_bytes += (qmx_bytes % sizeof(uint32_t));
+    fprintf(stderr, "DONE!!\n");
+    fflush(stderr);
     return (qmx_bytes / sizeof(uint32_t)) + decoded_u32;
 }

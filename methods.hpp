@@ -28,16 +28,18 @@ struct list_output {
     std::chrono::nanoseconds time_ns;
     enc_method comp_method;
     list_output(){};
-    list_output(uint32_t nl, uint64_t np, enc_method m) {
+    list_output(uint32_t nl, uint64_t np, enc_method m)
+    {
         comp_method = m;
         num_lists = nl;
         num_postings = np;
-        postings.resize(num_postings);
+        postings.resize(num_postings + 4096);
         list_lens.resize(nl);
     }
 };
 
-std::ostream& operator<<(std::ostream& os, enc_method c) {
+std::ostream& operator<<(std::ostream& os, enc_method c)
+{
     switch (c) {
     case enc_method::vbyte:
         os << "vbyte";
@@ -60,7 +62,8 @@ std::ostream& operator<<(std::ostream& os, enc_method c) {
     return os;
 }
 
-std::string available_methods() {
+std::string available_methods()
+{
     std::string opt = "[";
     std::ostringstream s;
     s << enc_method::vbyte << ",";
@@ -72,7 +75,8 @@ std::string available_methods() {
     return opt;
 }
 
-enc_method parse_method(std::string arg) {
+enc_method parse_method(std::string arg)
+{
     if (arg == "vbyte") {
         return enc_method::vbyte;
     }
@@ -92,7 +96,8 @@ enc_method parse_method(std::string arg) {
 }
 
 template <typename t_func>
-encoding_stats compress_lists(t_func codec_func, list_input& inputs, FILE* f) {
+encoding_stats compress_lists(t_func codec_func, list_input& inputs, FILE* f)
+{
     encoding_stats estats;
     estats.bytes_written = 0;
     // allocate a lage output buffer
@@ -108,9 +113,9 @@ encoding_stats compress_lists(t_func codec_func, list_input& inputs, FILE* f) {
         for (size_t i = 0; i < lists.size(); i++) {
             *out++ = lists[i].size();
         }
-        for (size_t i = 0; i < lists.size(); i++) {
-            fprintf(stderr, "%lu encode start at offset %lu\n", i,
-                    (out - initout));
+        for (size_t i = 0; i < 3; i++) {
+            fprintf(
+                stderr, "%lu encode start at offset %lu\n", i, (out - initout));
             size_t list_size = lists[i].size();
             const uint32_t* in = lists[i].data();
             out += codec_func(in, list_size, out);
@@ -126,8 +131,8 @@ encoding_stats compress_lists(t_func codec_func, list_input& inputs, FILE* f) {
 }
 
 template <typename t_func>
-list_output decompress_lists(t_func codec_func, FILE* f,
-                             enc_method comp_method) {
+list_output decompress_lists(t_func codec_func, FILE* f, enc_method comp_method)
+{
     auto content = read_file_content_u32(f);
     uint32_t* in = content.data();
     size_t num_u32 = content.size();
@@ -149,8 +154,8 @@ list_output decompress_lists(t_func codec_func, FILE* f,
             decoded_lists.list_lens[i] = *in++;
         }
         for (size_t i = 0; i < num_lists; i++) {
-            fprintf(stderr, "%lu decode start at offset %lu\n", i,
-                    (in - initin));
+            fprintf(
+                stderr, "%lu decode start at offset %lu\n", i, (in - initin));
             in += codec_func(in, out, decoded_lists.list_lens[i]);
             out += decoded_lists.list_lens[i];
         }
@@ -160,7 +165,8 @@ list_output decompress_lists(t_func codec_func, FILE* f,
     return decoded_lists;
 }
 
-void undo_gaps(list_input& inputs) {
+void undo_gaps(list_input& inputs)
+{
     for (size_t i = 0; i < inputs.postings_lists.size(); i++) {
         size_t list_size = inputs.postings_lists[i].size();
         uint32_t* lst = inputs.postings_lists[i].data();
@@ -169,7 +175,8 @@ void undo_gaps(list_input& inputs) {
     }
 }
 
-encoding_stats compress_lists(enc_method method, list_input& inputs, FILE* f) {
+encoding_stats compress_lists(enc_method method, list_input& inputs, FILE* f)
+{
 
     // encode method
     char method_sym = static_cast<char>(method);
@@ -199,7 +206,8 @@ encoding_stats compress_lists(enc_method method, list_input& inputs, FILE* f) {
     return es;
 }
 
-list_output decompress_lists(FILE* f) {
+list_output decompress_lists(FILE* f)
+{
     char method_sym = read_byte(f);
     enc_method method = static_cast<enc_method>(method_sym);
 

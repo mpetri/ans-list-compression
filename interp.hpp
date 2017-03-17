@@ -5,22 +5,6 @@
 #include "bits.hpp"
 #include "util.hpp"
 
-static std::vector<uint64_t> M;
-static std::vector<uint64_t> B;
-static std::vector<uint64_t> U;
-static std::vector<uint64_t> V;
-static std::vector<uint64_t> D;
-static std::vector<uint64_t> F;
-static std::vector<int64_t> Bit;
-
-static std::vector<uint64_t> H;
-static std::vector<uint64_t> LOW;
-static std::vector<uint64_t> HIGH;
-static std::vector<uint64_t> N1;
-static std::vector<uint64_t> N2;
-static std::vector<uint64_t> EV;
-static std::vector<uint64_t> B1;
-
 struct interpolative {
 
 private:
@@ -71,13 +55,6 @@ private:
         uint64_t n2 = n - h;
         uint64_t v = in_buf[h - 1ULL] + 1ULL; // we don't encode 0
 
-        LOW.push_back(low);
-        HIGH.push_back(high);
-        H.push_back(h);
-        N1.push_back(n1);
-        N2.push_back(n2);
-        EV.push_back(v);
-
         write_center_mid(os, v - low - n1 + 1, high - n2 - low - n1 + 1ULL);
 
         encode_interpolative(os, in_buf, n1, low, v - 1ULL);
@@ -94,25 +71,6 @@ private:
         uint64_t n2 = n - h;
         uint64_t v = low + n1 - 1ULL
             + read_center_mid(is, high - n2 - low - n1 + 1ULL);
-
-        static int i = 0;
-        auto otherH = H[i];
-        auto otherLOW = LOW[i];
-        auto otherHIGH = HIGH[i];
-        auto otherN1 = N1[i];
-        auto otherN2 = N2[i];
-        auto otherV = EV[i++];
-
-        // if (h != otherH || low != otherLOW || high != otherHIGH || n1 !=
-        // otherN1
-        //     || n2 != otherN2 || v != otherV) {
-        //     printf("%d h=%llu other=%llu\n", i - 1, h, otherH);
-        //     printf("%d low=%llu other=%llu\n", i - 1, low, otherLOW);
-        //     printf("%d high=%llu other=%llu\n", i - 1, high, otherHIGH);
-        //     printf("%d n1=%llu other=%llu\n", i - 1, n1, otherN1);
-        //     printf("%d n2=%llu other=%llu\n", i - 1, n2, otherN2);
-        //     printf("%d v=%llu other=%llu\n", i - 1, v, otherV);
-        // }
 
         out_buf[h - 1] = v - 1; // we don't encode 0
         if (n1)

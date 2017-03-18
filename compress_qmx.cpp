@@ -6,7 +6,7 @@
 
 	A version of BinPacking where we pack into a 128-bit SSE register the following:
 		256  0-bit words
-		128  1-bit words 
+		128  1-bit words
 		 64	 2-bit words
 		 40  3-bit words
 		 32  4-bit words
@@ -21,7 +21,7 @@
 		 28  9-bit words
 		 20 12-bit words
 		 12 21-bit words
-		
+
 	This gives us 15 possible combinations.  The combinaton is stored in the top 4 bits of a selector byte.  The
 	bottom 4-bits of the selector store a run-length (the number of such sequences seen in a row.
 
@@ -293,9 +293,11 @@ static void write_out(uint8_t **buffer, uint32_t *source, uint32_t raw_count, ui
 	type = 14; // 32 bits per integer
 	count = (raw_count + 3) / 4;
     }
-    else
-	exit(printf("Can't compress into integers of size %dbits\n", size_in_bits));
-
+    else {
+		printf("Can't compress into integers of size %dbits\n", size_in_bits);
+		fflush(stdout);
+		exit(EXIT_FAILURE);
+	}
     while (count > 0)
     {
 	batch = count > 16 ? 16 : count;
@@ -761,7 +763,9 @@ void compress_qmx::encodeArray(const uint32_t *source, uint64_t source_integers,
 	    }
 	    break;
 	default:
-	    exit(printf("Selecting on a non whole power of 2, must exit\n"));
+		printf("Selecting on a non whole power of 2, must exit\n");
+		fflush(stdout);
+		exit(EXIT_FAILURE);
 	    break;
 	}
     }

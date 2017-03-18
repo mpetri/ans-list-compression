@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <sstream>
 
 #include "util.hpp"
@@ -20,57 +22,39 @@ enum class enc_method : char {
     unknown = '?',
 };
 
-struct list_output {
-    std::vector<uint32_t> postings;
-    std::vector<uint32_t> list_lens;
-    uint64_t num_postings;
-    uint32_t num_lists;
-    std::chrono::nanoseconds time_ns;
-    enc_method comp_method;
-    list_output(){};
-    list_output(uint32_t nl, uint64_t np, enc_method m)
-    {
-        comp_method = m;
-        num_lists = nl;
-        num_postings = np;
-        postings.resize(num_postings + 4096);
-        list_lens.resize(nl);
-    }
-};
-
-std::ostream& operator<<(std::ostream& os, enc_method c)
+const char* to_string(enc_method c)
 {
     switch (c) {
     case enc_method::vbyte:
-        os << "vbyte";
+        return "vbyte";
         break;
     case enc_method::interp:
-        os << "interp";
+        return "interp";
         break;
     case enc_method::simple16:
-        os << "simple16";
+        return "simple16";
         break;
     case enc_method::op4:
-        os << "op4";
+        return "op4";
         break;
     case enc_method::qmx:
-        os << "qmx";
+        return "qmx";
         break;
     default:
-        os.setstate(std::ios_base::failbit);
+        return "invalid";
     }
-    return os;
+    return "invalid";
 }
 
 std::string available_methods()
 {
     std::string opt = "[";
     std::ostringstream s;
-    s << enc_method::vbyte << ",";
-    s << enc_method::interp << ",";
-    s << enc_method::simple16 << ",";
-    s << enc_method::op4 << ",";
-    s << enc_method::qmx;
+    s << to_string(enc_method::vbyte) << ",";
+    s << to_string(enc_method::interp) << ",";
+    s << to_string(enc_method::simple16) << ",";
+    s << to_string(enc_method::op4) << ",";
+    s << to_string(enc_method::qmx);
     opt += s.str() + "]";
     return opt;
 }
@@ -96,135 +80,148 @@ enc_method parse_method(std::string arg)
 }
 
 template <typename t_func>
-encoding_stats compress_lists(t_func codec_func, list_input& inputs, FILE* f)
+processing_stats compress_lists(t_func codec_func, list_data& ld, FILE* f)
 {
-    encoding_stats estats;
-    estats.bytes_written = 0;
+    processing_stats stats;
+    stats.bytes_written = 0;
     // allocate a lage output buffer
-    std::vector<uint32_t> out_buf(inputs.num_postings * 1.5);
+    std::vector<uint32_t> out_buf(ld.num_postings * 1.5);
     uint32_t* initout = out_buf.data();
     size_t u32_written = 0;
     {
         timer t("encode lists");
         uint32_t* out = initout;
-        const auto& lists = inputs.postings_lists;
+        size_t align_size = ld.num_postings;
+        out = align_ptr(16, 1, out, align_size);
         auto start = high_resolution_clock::now();
-        // encode lens as u32 at the start
-        for (size_t i = 0; i < lists.size(); i++) {
-            *out++ = lists[i].size();
-        }
-        for (size_t i = 0; i < 3; i++) {
-            fprintf(
-                stderr, "%lu encode start at offset %lu\n", i, (out - initout));
-            size_t list_size = lists[i].size();
-            const uint32_t* in = lists[i].data();
+        for (size_t i = 0; i < ld.num_lists; i++) {
+            size_t list_size = ld.list_sizes[i];
+            const uint32_t* in = ld.list_ptrs[i];
             out += codec_func(in, list_size, out);
         }
         auto stop = high_resolution_clock::now();
-        estats.time_ns = stop - start;
+        stats.time_ns = stop - start;
         u32_written = (out - initout);
     }
-    estats.bytes_written += write_u32s(f, initout, u32_written);
-    write_u32(f, inputs.postings_lists.size());
-    write_u64(f, inputs.num_postings);
-    return estats;
+    stats.bytes_written += write_u32s(f, initout, u32_written);
+    return stats;
 }
 
 template <typename t_func>
-list_output decompress_lists(t_func codec_func, FILE* f, enc_method comp_method)
+processing_stats decompress_lists(
+    t_func codec_func, FILE* f, list_data& ld, enc_method comp_method)
 {
+    processing_stats stats;
     auto content = read_file_content_u32(f);
     uint32_t* in = content.data();
-    size_t num_u32 = content.size();
-
-    uint32_t num_lists = in[num_u32 - 3];
-    uint64_t num_postings = *((uint64_t*)&in[num_u32 - 2]);
-    fprintf(stderr, "num_lists = %u\n", num_lists);
-    fprintf(stderr, "num_postings = %lu\n", num_postings);
-
-    list_output decoded_lists(num_lists, num_postings, comp_method);
-
-    uint32_t* out = decoded_lists.postings.data();
-    uint32_t* initin = in;
+    size_t content_size = content.size() * sizeof(uint32_t);
     {
         timer t("decode lists");
+        in = align_ptr(16, 1, in, content_size);
         auto start = high_resolution_clock::now();
-        // readid the list lens first
-        for (size_t i = 0; i < num_lists; i++) {
-            decoded_lists.list_lens[i] = *in++;
-        }
-        for (size_t i = 0; i < num_lists; i++) {
-            fprintf(
-                stderr, "%lu decode start at offset %lu\n", i, (in - initin));
-            in += codec_func(in, out, decoded_lists.list_lens[i]);
-            out += decoded_lists.list_lens[i];
+        for (size_t i = 0; i < ld.num_lists; i++) {
+            in += codec_func(in, ld.list_ptrs[i], ld.list_sizes[i]);
         }
         auto stop = high_resolution_clock::now();
-        decoded_lists.time_ns = stop - start;
+        stats.time_ns = stop - start;
     }
-    return decoded_lists;
+    return stats;
 }
 
-void undo_gaps(list_input& inputs)
+void undo_gaps(list_data& ld)
 {
-    for (size_t i = 0; i < inputs.postings_lists.size(); i++) {
-        size_t list_size = inputs.postings_lists[i].size();
-        uint32_t* lst = inputs.postings_lists[i].data();
+    for (size_t i = 0; i < ld.num_lists; i++) {
+        size_t list_size = ld.list_sizes[i];
+        uint32_t* lst = ld.list_ptrs[i];
         for (size_t j = 1; j < list_size; j++)
             lst[i] += lst[i - 1];
     }
 }
 
-encoding_stats compress_lists(enc_method method, list_input& inputs, FILE* f)
+processing_stats compress_lists(
+    enc_method m, list_data& ld, FILE* f, FILE* meta)
 {
+    // (1) write the meta data
+    fprintf(meta, "encoding = %s\n", to_string(m));
+    fprintf(meta, "num_lists = %lu\n", ld.num_lists);
+    fprintf(meta, "num_postings = %lu\n", ld.num_postings);
+    for (size_t i = 0; i < ld.num_lists; i++) {
+        fprintf(meta, "list len %lu = %u\n", i, ld.list_sizes[i]);
+    }
+    fclose(meta);
 
-    // encode method
-    char method_sym = static_cast<char>(method);
-    write_byte(f, method_sym);
-    encoding_stats es;
-    switch (method) {
+    // (2) encode data using method
+    processing_stats es;
+    switch (m) {
     case enc_method::vbyte:
-        es = compress_lists(vbyte_encode, inputs, f);
+        es = compress_lists(vbyte_encode, ld, f);
         break;
     case enc_method::qmx:
-        es = compress_lists(qmx_encode, inputs, f);
+        es = compress_lists(qmx_encode, ld, f);
         break;
     case enc_method::interp:
-        undo_gaps(inputs);
-        es = compress_lists(interp_encode, inputs, f);
+        undo_gaps(ld);
+        es = compress_lists(interp_encode, ld, f);
         break;
     case enc_method::simple16:
-        es = compress_lists(simple16_encode, inputs, f);
+        es = compress_lists(simple16_encode, ld, f);
         break;
     case enc_method::op4:
-        es = compress_lists(op4_encode, inputs, f);
+        es = compress_lists(op4_encode, ld, f);
         break;
     case enc_method::unknown:
         quit("invalid compression method.");
     }
-    es.bytes_written++; // for method selector
+    es.method = to_string(m);
     return es;
 }
 
-list_output decompress_lists(FILE* f)
+std::pair<list_data, processing_stats> decompress_lists(FILE* f, FILE* meta)
 {
-    char method_sym = read_byte(f);
-    enc_method method = static_cast<enc_method>(method_sym);
+    // (1) read the meta data
+    char method_name[256] = { 0 };
+    size_t num_lists = 0;
+    size_t num_postings = 0;
+    if (fscanf(meta, "encoding = %s\n", method_name) != 1)
+        quit("can't parse encoding metadata");
+    fprintf(stderr, "encoding = %s\n", method_name);
+    if (fscanf(meta, "num_lists = %lu\n", &num_lists) != 1)
+        quit("can't parse num_lists metadata\n");
+    fprintf(stderr, "num_lists = %lu\n", num_lists);
+    if (fscanf(meta, "num_postings = %lu\n", &num_postings) != 1)
+        quit("can't parse num_postings metadata");
+    fprintf(stderr, "num_postings = %lu\n", num_postings);
+    list_data ld(num_lists);
+    ld.num_postings = num_postings;
+    for (size_t i = 0; i < ld.num_lists; i++) {
+        size_t list_num = 0;
+        uint32_t len = 0;
+        if (fscanf(meta, "list len %lu = %u\n", &list_num, &len) != 2) {
+            quit("can't parse list len metadata");
+        }
+        ld.list_sizes[list_num] = len;
+        ld.list_ptrs[list_num]
+            = (uint32_t*)aligned_alloc(16, len * sizeof(uint32_t) + 4096);
+    }
+    fclose(meta);
 
+    enc_method method = parse_method(method_name);
+    processing_stats ds;
     switch (method) {
     case enc_method::qmx:
-        return decompress_lists(qmx_decode, f, method);
+        ds = decompress_lists(qmx_decode, f, ld, method);
+        break;
     case enc_method::vbyte:
-        return decompress_lists(vbyte_decode, f, method);
+        ds = decompress_lists(vbyte_decode, f, ld, method);
     case enc_method::interp:
-        return decompress_lists(interp_decode, f, method);
+        ds = decompress_lists(interp_decode, f, ld, method);
     case enc_method::simple16:
-        return decompress_lists(simple16_decode, f, method);
+        ds = decompress_lists(simple16_decode, f, ld, method);
     case enc_method::op4:
-        return decompress_lists(op4_decode, f, method);
+        ds = decompress_lists(op4_decode, f, ld, method);
     case enc_method::unknown:
         quit("invalid compression method.");
     }
-    // we never go here
-    return list_output();
+    ds.method = to_string(method);
+    return { std::move(ld), ds };
 }

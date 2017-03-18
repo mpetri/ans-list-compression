@@ -15,6 +15,7 @@ int main(int argc, char const* argv[])
     auto inputs = read_all_input_from_stdin();
 
     std::vector<std::vector<uint32_t> > removed_blocks;
+    std::vector<std::vector<uint32_t> > removed_blocks_prefixsum;
 
     // (1) determine new number of lists
     size_t lists_discarded = 0;
@@ -37,9 +38,12 @@ int main(int argc, char const* argv[])
         // (1) skip small lists completely
         if (cur_size < block_size) {
             std::vector<uint32_t> lst;
-            for (size_t j = 0; j < cur_size; j++)
+            for (size_t j = 0; j < cur_size; j++) {
                 lst.push_back(inputs.list_ptrs[i][j]);
+            }
             removed_blocks.push_back(lst);
+            std::partial_sum(lst.begin(), lst.end(), lst.begin());
+            removed_blocks_prefixsum.push_back(lst);
             postings_discarded += cur_size;
             continue;
         }
@@ -62,6 +66,8 @@ int main(int argc, char const* argv[])
             for (size_t j = 0; j < left; j++)
                 lst.push_back(inputs.list_ptrs[i][new_list_len + j]);
             removed_blocks.push_back(lst);
+            std::partial_sum(lst.begin(), lst.end(), lst.begin());
+            removed_blocks_prefixsum.push_back(lst);
         }
     }
 
@@ -72,10 +78,12 @@ int main(int argc, char const* argv[])
     size_t interp_u32s = 0;
     for (size_t i = 0; i < removed_blocks.size(); i++) {
         const auto& lst = removed_blocks[i];
+        const auto& lstps = removed_blocks[i];
         auto in = lst.data();
+        auto inps = lstps.data();
         size_t list_len = lst.size();
         vbyte_u32s += vbyte_encode(in, list_len, tmp);
-        interp_u32s += interp_encode(in, list_len, tmp);
+        interp_u32s += interp_encode(inps, list_len, tmp);
     }
 
     // (4) print stats to stderr

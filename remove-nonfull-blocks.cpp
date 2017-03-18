@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 
+#include "methods.hpp"
 #include "util.hpp"
 
 int main(int argc, char const* argv[])
@@ -12,6 +13,8 @@ int main(int argc, char const* argv[])
     size_t block_size = std::atoi(argv[1]);
 
     auto inputs = read_all_input_from_stdin();
+
+    std::vector<std::vector<uint32_t> > removed_blocks;
 
     // (1) determine new number of lists
     size_t lists_discarded = 0;
@@ -33,6 +36,10 @@ int main(int argc, char const* argv[])
         auto cur_size = inputs.list_sizes[i];
         // (1) skip small lists completely
         if (cur_size < block_size) {
+            std::vector<uint32_t> lst;
+            for (size_t j = 0; j < cur_size; j++)
+                lst.push_back(inputs.list_ptrs[i][j]);
+            removed_blocks.push_back(lst);
             postings_discarded += cur_size;
             continue;
         }
@@ -50,9 +57,28 @@ int main(int argc, char const* argv[])
                 printf("%u\n", list[offset + k]);
             }
         }
+        if (left) {
+            std::vector<uint32_t> lst;
+            for (size_t j = 0; j < left; j++)
+                lst.push_back(inputs.list_ptrs[i][new_list_len + j]);
+            removed_blocks.push_back(lst);
+        }
     }
 
-    // (3) print stats to stderr
+    // (3) compute compression ratios for interp and vbyte of removed blocks
+    std::vector<uint32_t> tmp_buf(block_size * 10);
+    uint32_t* tmp = tmp_buf.data();
+    size_t vbyte_u32s = 0;
+    size_t interp_u32s = 0;
+    for (size_t i = 0; i < removed_blocks.size(); i++) {
+        const auto& lst = removed_blocks[i];
+        auto in = lst.data();
+        size_t list_len = lst.size();
+        vbyte_u32s += vbyte_encode(in, list_len, tmp);
+        interp_u32s += interp_encode(in, list_len, tmp);
+    }
+
+    // (4) print stats to stderr
     double percent_lists_discarded
         = double(lists_discarded) / double(inputs.num_lists) * 100;
     double percent_postings_discarded
@@ -68,6 +94,11 @@ int main(int argc, char const* argv[])
         percent_lists_discarded);
     fprintf(stderr, "percentage of postings discarded = %lf\n",
         percent_postings_discarded);
+
+    double bpi_vbyte = double(vbyte_u32s * 32) / double(new_num_postings);
+    double bpi_interp = double(interp_u32s * 32) / double(new_num_postings);
+    fprintf(stderr, "BPI vbyte of removed blocks = %lf\n", bpi_vbyte);
+    fprintf(stderr, "BPI interp of removed blocks = %lf\n", bpi_interp);
 
     return EXIT_SUCCESS;
 }

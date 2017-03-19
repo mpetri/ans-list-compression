@@ -29,7 +29,7 @@ struct interpolative {
         size_t u32_read
             = interpolative_internal::decode(in, out, list_len - 1, universe);
         out[list_len - 1] = universe;
-        return in + u32_read + 1;
+        return in + u32_read;
     }
 };
 

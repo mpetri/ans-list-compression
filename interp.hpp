@@ -5,7 +5,7 @@
 #include "bits.hpp"
 #include "util.hpp"
 
-struct interpolative {
+struct interpolative_internal {
 
 private:
     static inline void write_center_mid(
@@ -100,20 +100,3 @@ public:
         return is.u32_read();
     }
 };
-
-size_t interp_encode(const uint32_t* in, size_t n, uint32_t* out)
-{
-    // (1) write length later
-    *out++ = in[n - 1];
-    // (2) delegate to FastPFor code
-    uint32_t bw = interpolative::encode(out, in, n - 1, in[n - 1]);
-    return (bw / sizeof(uint32_t)) + 1; // for list len and universe
-}
-
-size_t interp_decode(const uint32_t* in, uint32_t* out, uint32_t list_len)
-{
-    uint32_t universe = *in++;
-    size_t u32_read = interpolative::decode(in, out, list_len - 1, universe);
-    out[list_len - 1] = universe;
-    return u32_read + 1; // returns consumed u32s -> incorrect?
-}

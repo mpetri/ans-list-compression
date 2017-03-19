@@ -67,6 +67,20 @@ struct list_data {
         ld.num_postings = 0;
         ld.num_lists = 0;
     }
+    list_data(const list_data& ld)
+    {
+        num_postings = ld.num_postings;
+        num_lists = ld.num_lists;
+        list_ptrs.resize(ld.list_ptrs.size());
+        list_sizes = ld.list_sizes;
+        for (size_t i = 0; i < num_lists; i++) {
+            list_ptrs[i] = (uint32_t*)aligned_alloc(
+                16, list_sizes[i] * sizeof(uint32_t));
+            for (size_t j = 0; j < list_sizes[i]; j++) {
+                list_ptrs[i][j] = ld.list_ptrs[i][j];
+            }
+        }
+    }
     list_data& operator=(list_data&& ld)
     {
         num_postings = ld.num_postings;
@@ -112,13 +126,13 @@ struct timer {
     }
 };
 
-int printff(const char* format, ...)
+int fprintff(FILE* f, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
-    int ret = vfprintf(stdout, format, args);
+    int ret = vfprintf(f, format, args);
     va_end(args);
-    fflush(stdout);
+    fflush(f);
     return ret;
 }
 

@@ -17,36 +17,39 @@ std::vector<uint32_t> generate_random_data(t_dist& d, size_t num_elems)
     return data;
 }
 
-template <typename t_enc, typename t_dec>
-void encode_and_decode(
-    std::vector<uint32_t>& input, t_enc encode, t_dec decode, bool increasing)
+template <typename t_compressor>
+void encode_and_decode(std::vector<uint32_t>& input)
 {
-    if (increasing) {
+    t_compressor comp;
+    if (comp.required_increasing) {
         std::partial_sum(input.begin(), input.end(), input.begin());
         std::sort(input.begin(), input.end()); // ugly way to handle overflows
         auto new_end = std::unique(input.begin(), input.end());
         input.resize(std::distance(input.begin(), new_end));
     }
 
-    std::vector<uint32_t> compressed_data(input.size() * 2);
+    auto out = reinterpret_cast<uint32_t*>(
+        aligned_alloc(16, input.size() * 2 * sizeof(uint32_t)));
     const uint32_t* in = input.data();
-    uint32_t* out = compressed_data.data();
 
     // compress
-    size_t u32_written = encode(in, input.size(), out);
-    REQUIRE(u32_written < compressed_data.size());
+    size_t u32_written = input.size() * 2;
+
+    comp.encodeArray(in, input.size(), out, u32_written);
+    REQUIRE(u32_written < input.size() * 2);
 
     // decompress
     std::vector<uint32_t> decompressed_data(input.size() + 1024);
     uint32_t* recovered = decompressed_data.data();
-    size_t u32_processed = decode(out, recovered, input.size());
+    auto new_out = comp.decodeArray(out, u32_written, recovered, input.size());
+    auto u32_processed = new_out - out;
     decompressed_data.resize(input.size());
     REQUIRE(u32_written == u32_processed);
     REQUIRE(decompressed_data == input);
+    aligned_free(out);
 }
 
-template <typename t_enc, typename t_dec>
-void test_method(t_enc encode_func, t_dec decode_func, bool inreasing)
+template <typename t_compressor> void test_method()
 {
     SECTION("geometric 0.001")
     {
@@ -55,25 +58,25 @@ void test_method(t_enc encode_func, t_dec decode_func, bool inreasing)
         {
             auto data = generate_random_data(d, 1000);
             REQUIRE(data.size() == 1000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("10000 elements")
         {
             auto data = generate_random_data(d, 10000);
             REQUIRE(data.size() == 10000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("100000 elements")
         {
             auto data = generate_random_data(d, 100000);
             REQUIRE(data.size() == 100000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("1000000 elements")
         {
             auto data = generate_random_data(d, 1000000);
             REQUIRE(data.size() == 1000000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
     }
     SECTION("geometric 0.01")
@@ -83,25 +86,25 @@ void test_method(t_enc encode_func, t_dec decode_func, bool inreasing)
         {
             auto data = generate_random_data(d, 1000);
             REQUIRE(data.size() == 1000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("10000 elements")
         {
             auto data = generate_random_data(d, 10000);
             REQUIRE(data.size() == 10000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("100000 elements")
         {
             auto data = generate_random_data(d, 100000);
             REQUIRE(data.size() == 100000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("1000000 elements")
         {
             auto data = generate_random_data(d, 1000000);
             REQUIRE(data.size() == 1000000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
     }
     SECTION("geometric 0.1")
@@ -111,25 +114,25 @@ void test_method(t_enc encode_func, t_dec decode_func, bool inreasing)
         {
             auto data = generate_random_data(d, 1000);
             REQUIRE(data.size() == 1000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("10000 elements")
         {
             auto data = generate_random_data(d, 10000);
             REQUIRE(data.size() == 10000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("100000 elements")
         {
             auto data = generate_random_data(d, 100000);
             REQUIRE(data.size() == 100000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("1000000 elements")
         {
             auto data = generate_random_data(d, 1000000);
             REQUIRE(data.size() == 1000000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
     }
     SECTION("all ones")
@@ -138,25 +141,25 @@ void test_method(t_enc encode_func, t_dec decode_func, bool inreasing)
         {
             std::vector<uint32_t> data(1000, 1);
             REQUIRE(data.size() == 1000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("10000 elements")
         {
             std::vector<uint32_t> data(10000, 1);
             REQUIRE(data.size() == 10000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("100000 elements")
         {
             std::vector<uint32_t> data(100000, 1);
             REQUIRE(data.size() == 100000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("1000000 elements")
         {
             std::vector<uint32_t> data(1000000, 1);
             REQUIRE(data.size() == 1000000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
     }
     SECTION("uniform random small values")
@@ -166,25 +169,25 @@ void test_method(t_enc encode_func, t_dec decode_func, bool inreasing)
         {
             auto data = generate_random_data(d, 1000);
             REQUIRE(data.size() == 1000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("10000 elements")
         {
             auto data = generate_random_data(d, 10000);
             REQUIRE(data.size() == 10000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("100000 elements")
         {
             auto data = generate_random_data(d, 100000);
             REQUIRE(data.size() == 100000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("1000000 elements")
         {
             auto data = generate_random_data(d, 1000000);
             REQUIRE(data.size() == 1000000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
     }
     SECTION("uniform random large values")
@@ -194,50 +197,44 @@ void test_method(t_enc encode_func, t_dec decode_func, bool inreasing)
         {
             auto data = generate_random_data(d, 1000);
             REQUIRE(data.size() == 1000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("10000 elements")
         {
             auto data = generate_random_data(d, 10000);
             REQUIRE(data.size() == 10000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("100000 elements")
         {
             auto data = generate_random_data(d, 100000);
             REQUIRE(data.size() == 100000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
         SECTION("1000000 elements")
         {
             auto data = generate_random_data(d, 1000000);
             REQUIRE(data.size() == 1000000);
-            encode_and_decode(data, encode_func, decode_func, inreasing);
+            encode_and_decode<t_compressor>(data);
         }
     }
 }
 
 TEST_CASE("interpolative coding and decoding", "[interp]")
 {
-    test_method(interp_encode, interp_decode, true);
+    test_method<interpolative>();
 }
 
-TEST_CASE("vbyte coding and decoding", "[vbyte]")
-{
-    test_method(vbyte_encode, vbyte_decode, false);
-}
+TEST_CASE("vbyte coding and decoding", "[vbyte]") { test_method<vbyte>(); }
 
 TEST_CASE("OptPForDelta coding and decoding", "[op4]")
 {
-    test_method(op4_encode, op4_decode, false);
+    test_method<op4<128> >();
 }
 
 TEST_CASE("Simple16 coding and decoding", "[simple16]")
 {
-    test_method(simple16_encode, simple16_decode, false);
+    test_method<simple16>();
 }
 
-TEST_CASE("QMX coding and decoding", "[qmx]")
-{
-    test_method(qmx_encode, qmx_decode, false);
-}
+TEST_CASE("QMX coding and decoding", "[qmx]") { test_method<qmx>(); }

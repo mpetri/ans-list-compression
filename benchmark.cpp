@@ -5,8 +5,10 @@
 #include "methods.hpp"
 #include "util.hpp"
 
+using encoding_stats = std::pair<std::chrono::nanoseconds, uint64_t>;
+
 template <class t_compressor>
-int compress_lists(const list_data& ld, std::string output_prefix)
+encoding_stats compress_lists(const list_data& ld, std::string output_prefix)
 {
     t_compressor comp;
     std::string output_method_prefix = output_prefix + "." + comp.name();
@@ -14,6 +16,7 @@ int compress_lists(const list_data& ld, std::string output_prefix)
     std::string metadata_filename = output_method_prefix + ".metadata";
     std::cerr << "output_filename = " << output_data_filename << std::endl;
     std::cerr << "metadata_filename = " << metadata_filename << std::endl;
+    std::chrono::nanoseconds encoding_time_ns;
 
     // make a local copy of the input data as we might have prefix sum
     list_data local_data = ld;
@@ -31,11 +34,11 @@ int compress_lists(const list_data& ld, std::string output_prefix)
         uint64_t total_u32_written = 0;
         {
             timer t("encode lists");
+            auto start = std::chrono::high_resolution_clock::now();
 
             uint32_t* out = initout;
 
             {
-                timer t("init encoder");
                 size_t encoded_u32 = 0;
                 comp.init(ld, out, encoded_u32);
                 out += encoded_u32;
@@ -54,6 +57,8 @@ int compress_lists(const list_data& ld, std::string output_prefix)
                 total_u32_written += encoded_u32;
             }
             list_starts[local_data.num_lists] = (out - initout);
+            auto stop = std::chrono::high_resolution_clock::now();
+            encoding_time_ns = stop - start;
         }
         write_u32s(out_file, initout, total_u32_written + 1);
         fclose(out_file);
@@ -65,11 +70,19 @@ int compress_lists(const list_data& ld, std::string output_prefix)
             fclose(meta_file);
         }
     }
-    return 0;
+    uint64_t size_bits = 0;
+    {
+        auto out_file = fopen_or_fail(output_data_filename, "r");
+        fseek(out_file, 0L, SEEK_END);
+        auto size_bytes = ftell(out_file);
+        size_bits = size_bytes * 8;
+    }
+    return { encoding_time_ns, size_bits };
 }
 
 template <class t_compressor>
-int decompress_and_verify(const list_data& original, std::string prefix)
+std::chrono::nanoseconds decompress_and_verify(
+    const list_data& original, std::string prefix)
 {
     t_compressor comp;
     std::string input_method_prefix = prefix + "." + comp.name();
@@ -77,6 +90,7 @@ int decompress_and_verify(const list_data& original, std::string prefix)
     std::string metadata_filename = input_method_prefix + ".metadata";
     std::cerr << "input_filename = " << input_data_filename << std::endl;
     std::cerr << "metadata_filename = " << metadata_filename << std::endl;
+    std::chrono::nanoseconds decoding_time_ns;
 
     // (1) read metadata and allocate buffers
     list_data recovered;
@@ -92,11 +106,13 @@ int decompress_and_verify(const list_data& original, std::string prefix)
     {
         auto in_file = fopen_or_fail(input_data_filename, "rb");
         auto content = read_file_content_u32(in_file);
+        fclose(in_file);
         const uint32_t* in = content.data();
         {
             timer t("decode lists");
+
+            auto start = std::chrono::high_resolution_clock::now();
             {
-                timer t("init decoder");
                 comp.dec_init(in);
             }
 
@@ -106,8 +122,10 @@ int decompress_and_verify(const list_data& original, std::string prefix)
                 comp.decodeArray(input_ptr, encoding_size_u32,
                     recovered.list_ptrs[i], recovered.list_sizes[i]);
             }
+
+            auto stop = std::chrono::high_resolution_clock::now();
+            decoding_time_ns = stop - start;
         }
-        fclose(in_file);
     }
 
     if (comp.required_increasing) {
@@ -127,14 +145,21 @@ int decompress_and_verify(const list_data& original, std::string prefix)
                 recovered.list_sizes[i], "list_content");
         }
     }
-    return 0;
+    return decoding_time_ns;
 }
 
 template <class t_compressor>
 void run(const list_data& inputs, std::string output_prefix)
 {
-    compress_lists<t_compressor>(inputs, output_prefix);
-    decompress_and_verify<t_compressor>(inputs, output_prefix);
+    auto estats = compress_lists<t_compressor>(inputs, output_prefix);
+    auto dtime_ns = decompress_and_verify<t_compressor>(inputs, output_prefix);
+
+    {
+        t_compressor c;
+        fprintff(stderr, "%s;%lu;%lu;%lu;%lu;%lu\n", c.name().c_str(),
+            inputs.num_postings, inputs.num_lists, estats.second,
+            estats.first.count(), dtime_ns.count());
+    }
 }
 
 int main(int argc, char const* argv[])
@@ -146,9 +171,11 @@ int main(int argc, char const* argv[])
     std::string output_prefix = argv[1];
     auto inputs = read_all_input_from_stdin();
 
+    fprintff(stderr,
+        "method;postings;lists;size_bits;encoding_time_ns;decoding_time_ns\n");
+
     run<ans_vbyte<128, 4096> >(inputs, output_prefix);
     run<ans_vbyte<128, 512> >(inputs, output_prefix);
-    run<ans_vbyte<128, 256> >(inputs, output_prefix);
     run<qmx>(inputs, output_prefix);
     run<vbyte>(inputs, output_prefix);
     run<op4<128> >(inputs, output_prefix);

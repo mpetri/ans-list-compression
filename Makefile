@@ -15,12 +15,6 @@ benchmark: *.hpp *.h benchmark.cpp Makefile libFastPFor.a
 test: test.cpp *.hpp Makefile libFastPFor.a
 	g++ -O3 -g  -msse4.2 -std=c++11 -Wall -o test test.cpp libFastPFor.a
 
-# encode: encode.cpp *.hpp libFastPFor.a
-# 	g++ -O3 -g -msse4.2 -std=c++11 -Wall -o encode encode.cpp
-
-# decode: decode.cpp *.hpp Makefile libFastPFor.a
-# 	g++ -O3 -g -msse4.2 -std=c++11 -Wall -o decode decode.cpp
-
 remove-nonfull-blocks: remove-nonfull-blocks.cpp *.hpp Makefile FastPFor
 	g++ -O3 -g -msse4.2 -std=c++11 -Wall -o remove-nonfull-blocks remove-nonfull-blocks.cpp libFastPFor.a
 

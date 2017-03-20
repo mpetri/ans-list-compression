@@ -42,7 +42,7 @@ void encode_and_decode(std::vector<uint32_t>& input)
     std::vector<uint32_t> decompressed_data(input.size() + 1024);
     uint32_t* recovered = decompressed_data.data();
     auto new_out = comp.decodeArray(out, u32_written, recovered, input.size());
-    auto u32_processed = new_out - out;
+    size_t u32_processed = new_out - out;
     decompressed_data.resize(input.size());
     REQUIRE(u32_written == u32_processed);
     REQUIRE(decompressed_data == input);

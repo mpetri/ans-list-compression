@@ -9,9 +9,10 @@ template <class t_compressor>
 int compress_lists(const list_data& ld, std::string output_prefix)
 {
     t_compressor comp;
-    std::string output_filename = output_prefix + "." + comp.name();
-    std::string metadata_filename = output_filename + ".metadata";
-    std::cerr << "output_filename = " << output_filename << std::endl;
+    std::string output_method_prefix = output_prefix + "." + comp.name();
+    std::string output_data_filename = output_method_prefix + ".bin";
+    std::string metadata_filename = output_method_prefix + ".metadata";
+    std::cerr << "output_filename = " << output_data_filename << std::endl;
     std::cerr << "metadata_filename = " << metadata_filename << std::endl;
 
     // make a local copy of the input data as we might have prefix sum
@@ -21,7 +22,7 @@ int compress_lists(const list_data& ld, std::string output_prefix)
     }
 
     {
-        auto out_file = fopen_or_fail(output_filename, "wb");
+        auto out_file = fopen_or_fail(output_data_filename, "wb");
         // allocate a lage output buffer
         std::vector<uint32_t> out_buf(local_data.num_postings * 1.5);
         std::vector<uint64_t> list_starts(local_data.num_lists + 1);
@@ -31,9 +32,17 @@ int compress_lists(const list_data& ld, std::string output_prefix)
         {
             timer t("encode lists");
 
-            comp.init(ld);
-
             uint32_t* out = initout;
+
+            {
+                timer t("init encoder");
+                size_t encoded_u32 = 0;
+                comp.init(ld, out, encoded_u32);
+                out += encoded_u32;
+                std::cerr << "encoder model size u32 = " << encoded_u32
+                          << std::endl;
+            }
+
             size_t align_size = local_data.num_postings;
             out = align_ptr(16, 1, out, align_size);
             for (size_t i = 0; i < local_data.num_lists; i++) {
@@ -64,9 +73,10 @@ template <class t_compressor>
 int decompress_and_verify(const list_data& original, std::string prefix)
 {
     t_compressor comp;
-    std::string input_filename = prefix + "." + comp.name();
-    std::string metadata_filename = input_filename + ".metadata";
-    std::cerr << "input_filename = " << input_filename << std::endl;
+    std::string input_method_prefix = prefix + "." + comp.name();
+    std::string input_data_filename = input_method_prefix + ".bin";
+    std::string metadata_filename = input_method_prefix + ".metadata";
+    std::cerr << "input_filename = " << input_data_filename << std::endl;
     std::cerr << "metadata_filename = " << metadata_filename << std::endl;
 
     // (1) read metadata and allocate buffers
@@ -81,7 +91,7 @@ int decompress_and_verify(const list_data& original, std::string prefix)
 
     // (2) decompress
     {
-        auto in_file = fopen_or_fail(input_filename, "rb");
+        auto in_file = fopen_or_fail(input_data_filename, "rb");
         auto content = read_file_content_u32(in_file);
         uint32_t* in = content.data();
         {
@@ -132,6 +142,7 @@ int main(int argc, char const* argv[])
     std::string output_prefix = argv[1];
     auto inputs = read_all_input_from_stdin();
 
+    run<ans_vbyte<128, 4096> >(inputs, output_prefix);
     run<qmx>(inputs, output_prefix);
     run<vbyte>(inputs, output_prefix);
     run<op4<128> >(inputs, output_prefix);

@@ -4,13 +4,14 @@
 #include "FastPFor-master/headers/optpfor.h"
 #include "FastPFor-master/headers/simple16.h"
 #include "FastPFor-master/headers/variablebyte.h"
+#include "ans-vbyte.hpp"
 #include "compress_qmx.h"
 #include "interp.hpp"
 
 struct interpolative {
     bool required_increasing = true;
     std::string name() { return "interpolative"; }
-    void init(const list_data&){};
+    void init(const list_data&, uint32_t*, size_t& nvalue) { nvalue = 0; }
 
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& enc_u32)
@@ -36,7 +37,7 @@ struct interpolative {
 struct vbyte {
     bool required_increasing = false;
     std::string name() { return "vbyte"; }
-    void init(const list_data&){};
+    void init(const list_data&, uint32_t*, size_t& nvalue) { nvalue = 0; }
 
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& enc_u32)
@@ -57,7 +58,7 @@ template <uint32_t t_block_size = 128> struct op4 {
         t_block_size % 32 == 0, "op4 blocksize must be multiple of 32");
     bool required_increasing = false;
     std::string name() { return "op4"; }
-    void init(const list_data&){};
+    void init(const list_data&, uint32_t*, size_t& nvalue) { nvalue = 0; }
 
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& enc_u32)
@@ -80,7 +81,7 @@ template <uint32_t t_block_size = 128> struct op4 {
 struct simple16 {
     bool required_increasing = false;
     std::string name() { return "simple16"; }
-    void init(const list_data&){};
+    void init(const list_data&, uint32_t*, size_t& nvalue) { nvalue = 0; }
 
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& enc_u32)
@@ -101,7 +102,7 @@ struct simple16 {
 struct qmx {
     bool required_increasing = false;
     std::string name() { return "qmx"; }
-    void init(const list_data&){};
+    void init(const list_data&, uint32_t*, size_t& nvalue) { nvalue = 0; }
 
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& enc_u32)

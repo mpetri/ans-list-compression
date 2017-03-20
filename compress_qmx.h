@@ -125,8 +125,9 @@ static inline uint32_t vbyte_decompress(const uint8_t *source)
     else
     {
 	    result = *source--;
-        while (!(*source & 0x80))
+        while (!(*source & 0x80)) {
             result = (result << 7) | *source--;
+        }
 	    return (result << 7) | (*source & 0x7F);
     }
 }

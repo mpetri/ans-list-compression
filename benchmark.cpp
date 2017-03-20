@@ -39,8 +39,7 @@ int compress_lists(const list_data& ld, std::string output_prefix)
                 size_t encoded_u32 = 0;
                 comp.init(ld, out, encoded_u32);
                 out += encoded_u32;
-                std::cerr << "encoder model size u32 = " << encoded_u32
-                          << std::endl;
+                total_u32_written += encoded_u32;
             }
 
             size_t align_size = local_data.num_postings;
@@ -56,7 +55,7 @@ int compress_lists(const list_data& ld, std::string output_prefix)
             }
             list_starts[local_data.num_lists] = (out - initout);
         }
-        write_u32s(out_file, initout, total_u32_written);
+        write_u32s(out_file, initout, total_u32_written + 1);
         fclose(out_file);
 
         {
@@ -93,9 +92,14 @@ int decompress_and_verify(const list_data& original, std::string prefix)
     {
         auto in_file = fopen_or_fail(input_data_filename, "rb");
         auto content = read_file_content_u32(in_file);
-        uint32_t* in = content.data();
+        const uint32_t* in = content.data();
         {
             timer t("decode lists");
+            {
+                timer t("init decoder");
+                comp.dec_init(in);
+            }
+
             for (size_t i = 0; i < recovered.num_lists; i++) {
                 auto input_ptr = in + list_starts[i];
                 size_t encoding_size_u32 = list_starts[i + 1] - list_starts[i];
@@ -143,6 +147,8 @@ int main(int argc, char const* argv[])
     auto inputs = read_all_input_from_stdin();
 
     run<ans_vbyte<128, 4096> >(inputs, output_prefix);
+    run<ans_vbyte<128, 512> >(inputs, output_prefix);
+    run<ans_vbyte<128, 256> >(inputs, output_prefix);
     run<qmx>(inputs, output_prefix);
     run<vbyte>(inputs, output_prefix);
     run<op4<128> >(inputs, output_prefix);

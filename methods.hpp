@@ -12,6 +12,7 @@ struct interpolative {
     bool required_increasing = true;
     std::string name() { return "interpolative"; }
     void init(const list_data&, uint32_t*, size_t& nvalue) { nvalue = 0; }
+    const uint32_t* dec_init(const uint32_t* in) { return in; }
 
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& enc_u32)
@@ -38,6 +39,7 @@ struct vbyte {
     bool required_increasing = false;
     std::string name() { return "vbyte"; }
     void init(const list_data&, uint32_t*, size_t& nvalue) { nvalue = 0; }
+    const uint32_t* dec_init(const uint32_t* in) { return in; }
 
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& enc_u32)
@@ -59,6 +61,7 @@ template <uint32_t t_block_size = 128> struct op4 {
     bool required_increasing = false;
     std::string name() { return "op4"; }
     void init(const list_data&, uint32_t*, size_t& nvalue) { nvalue = 0; }
+    const uint32_t* dec_init(const uint32_t* in) { return in; }
 
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& enc_u32)
@@ -82,6 +85,7 @@ struct simple16 {
     bool required_increasing = false;
     std::string name() { return "simple16"; }
     void init(const list_data&, uint32_t*, size_t& nvalue) { nvalue = 0; }
+    const uint32_t* dec_init(const uint32_t* in) { return in; }
 
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& enc_u32)
@@ -103,6 +107,7 @@ struct qmx {
     bool required_increasing = false;
     std::string name() { return "qmx"; }
     void init(const list_data&, uint32_t*, size_t& nvalue) { nvalue = 0; }
+    const uint32_t* dec_init(const uint32_t* in) { return in; }
 
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& enc_u32)

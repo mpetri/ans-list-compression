@@ -90,6 +90,7 @@ int main(int argc, char const* argv[])
         vbyte_u32s += enc_u32;
         enc_u32 = tmp_buf.size();
         ic.encodeArray(inps,list_len,tmp,enc_u32);
+        interp_u32s += enc_u32;
     }
 
     // (4) print stats to stderr

@@ -45,8 +45,6 @@ encoding_stats compress_lists(const list_data& ld, std::string output_prefix)
                 total_u32_written += encoded_u32;
             }
 
-            size_t align_size = local_data.num_postings;
-            out = align_ptr(16, 1, out, align_size);
             for (size_t i = 0; i < local_data.num_lists; i++) {
                 size_t list_size = local_data.list_sizes[i];
                 const uint32_t* in = local_data.list_ptrs[i];
@@ -60,7 +58,7 @@ encoding_stats compress_lists(const list_data& ld, std::string output_prefix)
             auto stop = std::chrono::high_resolution_clock::now();
             encoding_time_ns = stop - start;
         }
-        write_u32s(out_file, initout, total_u32_written + 1);
+        write_u32s(out_file, initout, total_u32_written);
         fclose(out_file);
 
         {
@@ -142,7 +140,7 @@ std::chrono::nanoseconds decompress_and_verify(
             REQUIRE_EQUAL(
                 original.list_sizes[i], recovered.list_sizes[i], "list_size");
             REQUIRE_EQUAL(original.list_ptrs[i], recovered.list_ptrs[i],
-                recovered.list_sizes[i], "list_content");
+                recovered.list_sizes[i], "list_contents");
         }
     }
     return decoding_time_ns;

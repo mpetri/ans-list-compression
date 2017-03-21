@@ -15,7 +15,8 @@ void REQUIRE_EQUAL(
 {
     for (size_t i = 0; i < n; i++) {
         if (a[i] != b[i]) {
-            quit("ERROR. %s not equal.", name.c_str());
+            quit("ERROR. %s not equal at position %lu/%lu.", name.c_str(), i,
+                n - 1);
         }
     }
 }

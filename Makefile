@@ -1,5 +1,5 @@
 
-all: test encode decode remove-nonfull-blocks libFastPFor.a
+all: test remove-nonfull-blocks libFastPFor.a benchmark
 
 libFastPFor.a:
 	g++ -O3 -g -msse4.2 -std=c++11 -Wall -I FastPFor-master/headers/ -c FastPFor-master/src/bitpacking.cpp
@@ -15,7 +15,7 @@ benchmark: *.hpp *.h benchmark.cpp Makefile libFastPFor.a
 test: test.cpp *.hpp Makefile libFastPFor.a
 	g++ -O3 -g  -msse4.2 -std=c++11 -Wall -o test test.cpp libFastPFor.a
 
-remove-nonfull-blocks: remove-nonfull-blocks.cpp *.hpp Makefile FastPFor
+remove-nonfull-blocks: remove-nonfull-blocks.cpp *.hpp Makefile libFastPFor.a
 	g++ -O3 -g -msse4.2 -std=c++11 -Wall -o remove-nonfull-blocks remove-nonfull-blocks.cpp libFastPFor.a
 
 clean:

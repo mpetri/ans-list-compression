@@ -8,7 +8,7 @@
 int main(int argc, char const* argv[])
 {
     if (argc != 2) {
-        printff("%s <block_size> < input_file > output_file\n", argv[0]);
+        fprintff(stderr,"%s <block_size> < input_file > output_file\n", argv[0]);
         return EXIT_FAILURE;
     }
     size_t block_size = std::atoi(argv[1]);
@@ -77,14 +77,19 @@ int main(int argc, char const* argv[])
     uint32_t* tmp = tmp_buf.data();
     size_t vbyte_u32s = 0;
     size_t interp_u32s = 0;
+    vbyte vbc;
+    interpolative ic;
     for (size_t i = 0; i < removed_blocks.size(); i++) {
         const auto& lst = removed_blocks[i];
         const auto& lstps = removed_blocks_prefixsum[i];
         auto in = lst.data();
         auto inps = lstps.data();
         size_t list_len = lst.size();
-        vbyte_u32s += vbyte_encode(in, list_len, tmp);
-        interp_u32s += interp_encode(inps, list_len, tmp);
+        size_t enc_u32 = tmp_buf.size();
+        vbc.encodeArray(in,list_len,tmp,enc_u32);
+        vbyte_u32s += enc_u32;
+        enc_u32 = tmp_buf.size();
+        ic.encodeArray(inps,list_len,tmp,enc_u32);
     }
 
     // (4) print stats to stderr

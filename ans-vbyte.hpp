@@ -103,14 +103,11 @@ struct sym_data {
 };
 
 template <uint32_t t_frame_size> struct ans_vbyte_model {
-    std::vector<sym_data> nfreqs_base;
     std::vector<uint16_t> nfreqs;
     std::vector<uint16_t> base;
     std::vector<uint8_t> csum2sym;
     std::vector<uint32_t> sym_upper_bound;
     static const uint32_t frame_size = t_frame_size;
-    static const uint8_t frame_size_log2 = clog2(frame_size);
-    static const uint32_t frame_size_mask = frame_size - 1;
     ans_vbyte_model() {}
     ans_vbyte_model(freq_table& freqs)
     {
@@ -122,7 +119,6 @@ template <uint32_t t_frame_size> struct ans_vbyte_model {
         }
         nfreqs.resize(max_sym + 1);
         sym_upper_bound.resize(max_sym + 1);
-        nfreqs_base.resize(max_sym + 1);
         base.resize(max_sym + 1);
         csum2sym.resize(t_frame_size);
         // (2) normalize frequencies
@@ -138,8 +134,6 @@ template <uint32_t t_frame_size> struct ans_vbyte_model {
                 = ((constants::L / t_frame_size) * constants::OUTPUT_BASE)
                 * nfreqs[i];
             cumsum += nfreqs[i];
-            nfreqs_base[i].freq = nfreqs[i];
-            nfreqs_base[i].base = base[i];
         }
     }
 };
@@ -290,6 +284,21 @@ inline uint32_t ans_decode_advance(const t_model& model, uint32_t state,
     return state;
 }
 
+struct dec_table_entry {
+    uint16_t freq;
+    uint16_t base_offset;
+    uint8_t sym;
+    uint8_t vb_sym;
+    uint8_t finish;
+};
+
+template <uint32_t t_frame_size> struct ans_decode_model {
+    static const uint32_t frame_size = t_frame_size;
+    static const uint8_t frame_size_log2 = clog2(frame_size);
+    static const uint32_t frame_size_mask = frame_size - 1;
+    dec_table_entry table[t_frame_size];
+};
+
 template <uint32_t t_block_size = 128, uint32_t t_frame_size = 4096>
 struct ans_vbyte {
 private:
@@ -299,6 +308,7 @@ private:
             { 96, 128 }, { 128, 160 }, { 160, 192 }, { 192, 255 } };
     using ans_model_type = ans_vbyte_model<t_frame_size>;
     std::vector<ans_model_type> models;
+    std::vector<ans_decode_model<t_frame_size> > decode_models;
 
 private:
     uint8_t pick_model(uint32_t block_max)
@@ -389,27 +399,20 @@ public:
     {
         auto initin8 = reinterpret_cast<const uint8_t*>(in);
         auto in8 = initin8;
-        models.resize(thresholds.size());
-        for (size_t i = 0; i < models.size(); i++) {
+        decode_models.resize(thresholds.size());
+        for (size_t i = 0; i < decode_models.size(); i++) {
             size_t max = ans_vbyte_decode_u32(in8);
-            models[i].nfreqs.resize(max);
-            models[i].nfreqs_base.resize(max);
-            models[i].base.resize(max);
-            models[i].sym_upper_bound.resize(max);
-            models[i].csum2sym.resize(t_frame_size);
-            uint32_t cumsum = 0;
+            uint32_t base = 0;
             for (size_t j = 0; j < max; j++) {
-                models[i].nfreqs[j] = ans_vbyte_decode_u32(in8);
-                models[i].base[j] = cumsum;
-                for (size_t k = 0; k < models[i].nfreqs[j]; k++) {
-                    models[i].csum2sym[cumsum + k] = j;
+                uint16_t cur_freq = ans_vbyte_decode_u32(in8);
+                for (size_t k = 0; k < cur_freq; k++) {
+                    decode_models[i].table[base + k].sym = j;
+                    decode_models[i].table[base + k].vb_sym = j & 127;
+                    decode_models[i].table[base + k].freq = cur_freq;
+                    decode_models[i].table[base + k].base_offset = k;
+                    decode_models[i].table[base + k].finish = (j < 128) ? 1 : 0;
                 }
-                cumsum += models[i].nfreqs[j];
-                models[i].sym_upper_bound[i]
-                    = ((constants::L / t_frame_size) * constants::OUTPUT_BASE)
-                    * models[i].nfreqs[i];
-                models[i].nfreqs_base[j].freq = models[i].nfreqs[j];
-                models[i].nfreqs_base[j].base = models[i].base[j];
+                base += cur_freq;
             }
         }
         size_t pbytes = in8 - initin8;
@@ -550,20 +553,30 @@ public:
             }
 
             // (1) undo ans
-            const auto& model = models[model_id];
+            const auto& model = decode_models[model_id];
             size_t enc_size = ans_vbyte_decode_u32(in8);
             auto state = ans_decode_init(in8, enc_size);
             size_t num_decoded = 0;
+            uint32_t cur_decoded_num = 0;
+            uint8_t shift = 0;
             while (state != 0) {
-                uint8_t sym = ans_decode_sym(model, state);
-                state = ans_decode_advance(model, state, sym, in8, enc_size);
-                tmp_vb_buf[num_decoded++] = sym;
-            }
-            // (2) undo vbyte and output
-            const uint8_t* vb_start = tmp_vb_buf.data();
-            auto vb_end = vb_start + num_decoded;
-            while (vb_start != vb_end) {
-                *out++ = ans_vbyte_decode_u32(vb_start);
+                uint32_t state_mod_fs = state & model.frame_size_mask;
+                const auto& entry = model.table[state_mod_fs];
+                cur_decoded_num += entry.vb_sym << shift;
+                shift += 7;
+                if (entry.finish) {
+                    *out++ = cur_decoded_num;
+                    cur_decoded_num = 0;
+                    shift = 0;
+                }
+                state = entry.freq * (state >> model.frame_size_log2)
+                    + entry.base_offset;
+                while (enc_size && state < constants::L) {
+                    uint8_t new_byte = *in8++;
+                    state = (state << constants::OUTPUT_BASE_LOG2)
+                        | uint32_t(new_byte);
+                    enc_size--;
+                }
             }
         }
         return out;

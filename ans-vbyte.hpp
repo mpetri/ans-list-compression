@@ -536,8 +536,6 @@ public:
             block_model[i] = packed_block_types >> 4;
             block_model[i + 1] = packed_block_types & 15;
         }
-
-        static std::array<uint8_t, t_block_size * 5> tmp_vb_buf;
         for (size_t i = 0; i < num_blocks; i++) {
             bool last_block = ((i + 1) == num_blocks);
             auto model_id = block_model[i];
@@ -556,7 +554,6 @@ public:
             const auto& model = decode_models[model_id];
             size_t enc_size = ans_vbyte_decode_u32(in8);
             auto state = ans_decode_init(in8, enc_size);
-            size_t num_decoded = 0;
             uint32_t cur_decoded_num = 0;
             uint8_t shift = 0;
             while (state != 0) {

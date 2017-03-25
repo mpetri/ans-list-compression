@@ -9,107 +9,20 @@ const uint32_t MAX_SIGMA = 256;
 const uint32_t L = (1u << 23);
 const uint32_t OUTPUT_BASE = 256;
 const uint8_t OUTPUT_BASE_LOG2 = 8;
+const uint8_t MAX_INT_THRES = 127;
+const uint8_t EXCEPT_SYM = 0;
 }
-
-using freq_table = std::array<uint64_t, constants::MAX_SIGMA>;
-
-struct norm_freq {
-    uint32_t org;
-    uint32_t norm;
-    uint8_t sym;
-};
 
 constexpr size_t clog2(size_t n) { return ((n < 2) ? 0 : 1 + clog2(n / 2)); }
 
-void normalize_freqs(
-    freq_table& freqs, std::vector<uint16_t>& nfreqs, uint32_t frame_size)
-{
-    // (1) compute the counts
-    if (freqs[0] != 0) {
-        quit("we assume there are no 0's in the encoding");
-    }
-    freqs[0] = 1;
-    uint64_t num_syms = 0;
-    for (size_t i = 0; i < nfreqs.size(); i++) {
-        num_syms += freqs[i];
-    }
-
-    // (2) crude normalization
-    uint32_t actual_freq_csum = 0;
-    std::vector<norm_freq> norm_freqs(nfreqs.size());
-    for (size_t i = 0; i < nfreqs.size(); i++) {
-        norm_freqs[i].sym = i;
-        norm_freqs[i].org = freqs[i];
-        norm_freqs[i].norm = (double(freqs[i]) / double(num_syms)) * frame_size;
-        if (norm_freqs[i].norm == 0 && norm_freqs[i].org != 0)
-            norm_freqs[i].norm = 1;
-        actual_freq_csum += norm_freqs[i].norm;
-    }
-
-    // (3) fix things
-    int32_t difference = int32_t(frame_size) - int32_t(actual_freq_csum);
-    auto cmp_pdiff_func
-        = [num_syms, frame_size](const norm_freq& a, const norm_freq& b) {
-              double org_prob_a = double(a.org) / double(num_syms);
-              double org_prob_b = double(b.org) / double(num_syms);
-              double norm_prob_a = double(a.norm) / double(frame_size);
-              if (a.norm == 1)
-                  norm_prob_a = 0;
-              double norm_prob_b = double(b.norm) / double(frame_size);
-              if (b.norm == 1)
-                  norm_prob_b = 0;
-              return (norm_prob_b - org_prob_b) > (norm_prob_a - org_prob_a);
-          };
-    while (difference != 0) {
-        std::sort(norm_freqs.begin(), norm_freqs.end(), cmp_pdiff_func);
-        for (size_t i = 0; i < norm_freqs.size(); i++) {
-            if (difference > 0) {
-                norm_freqs[i].norm++;
-                difference--;
-                break;
-            } else {
-                if (norm_freqs[i].norm != 1) {
-                    norm_freqs[i].norm--;
-                    difference++;
-                    break;
-                }
-            }
-        }
-    }
-
-    // (4) put things back in order
-    auto cmp_sym_func
-        = [](const norm_freq& a, const norm_freq& b) { return a.sym < b.sym; };
-    std::sort(norm_freqs.begin(), norm_freqs.end(), cmp_sym_func);
-
-    // (5) check everything is ok
-    actual_freq_csum = 0;
-    for (size_t i = 0; i < nfreqs.size(); i++)
-        actual_freq_csum += norm_freqs[i].norm;
-    if (actual_freq_csum != frame_size) {
-        quit("normalizing to framesize failed %u -> %u", frame_size,
-            actual_freq_csum);
-    }
-
-    // (6) return actual normalized freqs
-    for (size_t i = 0; i < norm_freqs.size(); i++) {
-        nfreqs[i] = norm_freqs[i].norm;
-    }
-}
-
-struct sym_data {
-    uint16_t freq;
-    uint16_t base;
-};
-
-template <uint32_t t_frame_size> struct ans_vbyte_model {
+template <uint32_t t_frame_size> struct ans_op4_model {
     std::vector<uint16_t> nfreqs;
     std::vector<uint16_t> base;
     std::vector<uint8_t> csum2sym;
     std::vector<uint32_t> sym_upper_bound;
     static const uint32_t frame_size = t_frame_size;
-    ans_vbyte_model() {}
-    ans_vbyte_model(freq_table& freqs)
+    ans_op4_model() {}
+    ans_op4_model(freq_table& freqs)
     {
         // (1) determine max symbol and allocate tables
         uint8_t max_sym = 0;
@@ -147,42 +60,6 @@ template <uint32_t i>
 inline uint8_t ans_extract7bitsmaskless(const uint32_t val)
 {
     return static_cast<uint8_t>((val >> (7 * i)));
-}
-
-inline void ans_vbyte_encode_u32(uint8_t*& out, uint32_t x, uint8_t& max_elem)
-{
-    if (x < (1U << 7)) {
-        *out++ = static_cast<uint8_t>(x & 127);
-        max_elem = std::max(max_elem, *(out - 1));
-    } else if (x < (1U << 14)) {
-        *out++ = ans_extract7bits<0>(x) | 128;
-        max_elem = std::max(max_elem, *(out - 1));
-        *out++ = ans_extract7bitsmaskless<1>(x) & 127;
-    } else if (x < (1U << 21)) {
-        *out++ = ans_extract7bits<0>(x) | 128;
-        max_elem = std::max(max_elem, *(out - 1));
-        *out++ = ans_extract7bits<1>(x) | 128;
-        max_elem = std::max(max_elem, *(out - 1));
-        *out++ = ans_extract7bitsmaskless<2>(x) & 127;
-    } else if (x < (1U << 28)) {
-        *out++ = ans_extract7bits<0>(x) | 128;
-        max_elem = std::max(max_elem, *(out - 1));
-        *out++ = ans_extract7bits<1>(x) | 128;
-        max_elem = std::max(max_elem, *(out - 1));
-        *out++ = ans_extract7bits<2>(x) | 128;
-        max_elem = std::max(max_elem, *(out - 1));
-        *out++ = ans_extract7bitsmaskless<3>(x) & 127;
-    } else {
-        *out++ = ans_extract7bits<0>(x) | 128;
-        max_elem = std::max(max_elem, *(out - 1));
-        *out++ = ans_extract7bits<1>(x) | 128;
-        max_elem = std::max(max_elem, *(out - 1));
-        *out++ = ans_extract7bits<2>(x) | 128;
-        max_elem = std::max(max_elem, *(out - 1));
-        *out++ = ans_extract7bits<3>(x) | 128;
-        max_elem = std::max(max_elem, *(out - 1));
-        *out++ = ans_extract7bitsmaskless<4>(x) & 127;
-    }
 }
 
 inline void ans_vbyte_encode_u32(uint8_t*& out, uint32_t x)
@@ -226,13 +103,21 @@ inline uint32_t ans_vbyte_decode_u32(const uint8_t*& input)
 }
 
 template <class t_model>
-inline uint32_t ans_encode(
-    const t_model& model, uint32_t state, uint8_t sym, uint8_t*& out8)
+inline uint32_t ans_op4_encode(
+    const t_model& model, uint32_t state, uint32_t num, uint8_t*& out8)
 {
-    uint32_t freq = model.nfreqs[sym];
-    uint32_t base = model.base[sym];
+    if (num > model.max_int_thres) {
+        // write exception in reverse order
+        uint32_t except = num - model.max_int_thres;
+        ans_vbyte_encode_reverse_u32(except, out8);
+        // we then ans encode the exception marker
+        num = EXCEPT_SYM;
+    }
+
+    uint32_t freq = model.nfreqs[num];
+    uint32_t base = model.base[num];
     // (1) normalize
-    uint32_t sym_range_upper_bound = model.sym_upper_bound[sym];
+    uint32_t sym_range_upper_bound = model.sym_upper_bound[num];
     while (state >= sym_range_upper_bound) {
         --out8;
         *out8 = (uint8_t)(state & 0xFF);
@@ -276,12 +161,12 @@ template <uint32_t t_frame_size> struct ans_decode_model {
 };
 
 template <uint32_t t_block_size = 128, uint32_t t_frame_size = 4096>
-struct ans_vbyte {
+struct ans_op4 {
 private:
     const std::vector<std::pair<uint32_t, uint32_t> > thresholds
         = { { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 4 }, { 4, 5 }, { 5, 6 },
-            { 6, 7 }, { 7, 8 }, { 8, 16 }, { 16, 32 }, { 32, 64 }, { 64, 96 },
-            { 96, 128 }, { 128, 160 }, { 160, 192 }, { 192, 255 } };
+            { 6, 7 }, { 7, 8 }, { 8, 10 }, { 10, 11 }, { 11, 12 }, { 12, 15 },
+            { 16, 32 }, { 32, 64 }, { 64, 96 }, { 96, 127 } };
     using ans_model_type = ans_vbyte_model<t_frame_size>;
     std::vector<ans_model_type> models;
     std::vector<ans_decode_model<t_frame_size> > decode_models;

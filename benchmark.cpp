@@ -140,7 +140,8 @@ std::chrono::nanoseconds decompress_and_verify(
             REQUIRE_EQUAL(
                 original.list_sizes[i], recovered.list_sizes[i], "list_size");
             REQUIRE_EQUAL(original.list_ptrs[i], recovered.list_ptrs[i],
-                recovered.list_sizes[i], "list_contents");
+                recovered.list_sizes[i],
+                "list_contents[" + std::to_string(i) + "]");
         }
     }
     return decoding_time_ns;
@@ -162,18 +163,29 @@ void run(const list_data& inputs, std::string output_prefix)
 
 int main(int argc, char const* argv[])
 {
-    if (argc != 2) {
+    if (argc < 2) {
         fprintff(stderr, "%s <output_path> < input_file\n", argv[0]);
         return EXIT_FAILURE;
     }
     std::string output_prefix = argv[1];
-    auto inputs = read_all_input_from_stdin();
+    uint32_t max_lists = 0;
+    if (argc >= 3) {
+        max_lists = std::atoi(argv[2]);
+    }
+    uint32_t skip = 0;
+    if (argc >= 4) {
+        skip = std::atoi(argv[3]);
+    }
+
+    auto inputs = read_all_input_from_stdin(max_lists, skip);
 
     fprintff(stderr,
         "method;postings;lists;size_bits;encoding_time_ns;decoding_time_ns\n");
 
-    run<ans_vbyte<128, 4096> >(inputs, output_prefix);
-    run<ans_vbyte<128, 512> >(inputs, output_prefix);
+    run<ans_vbyte_single<4096> >(inputs, output_prefix);
+    run<ans_pfor<128, 4096> >(inputs, output_prefix);
+    // run<ans_vbyte<128, 4096> >(inputs, output_prefix);
+    // run<ans_vbyte<128, 512> >(inputs, output_prefix);
     run<qmx>(inputs, output_prefix);
     run<vbyte>(inputs, output_prefix);
     run<op4<128> >(inputs, output_prefix);

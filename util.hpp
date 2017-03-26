@@ -186,23 +186,36 @@ std::vector<uint32_t> read_uint32_list()
     std::vector<uint32_t> list(list_len);
     for (uint32_t j = 0; j < list_len; j++) {
         list[j] = read_uint32_line();
+        if (list[j] == 0) {
+            fprintff(
+                stderr, "error: input list contains 0. replacing with 1.\n");
+            list[j] = 1;
+        }
     }
     return list;
 }
 
-list_data read_all_input_from_stdin()
+list_data read_all_input_from_stdin(uint32_t max = 0, uint32_t skip = 0)
 {
     timer t("read input lists from stdin");
     uint32_t num_lists = read_uint32_line();
+    if (max != 0) {
+        num_lists = max - skip;
+    } else {
+        max = num_lists;
+    }
     list_data ld(num_lists);
-    for (uint32_t i = 0; i < num_lists; i++) {
+    for (uint32_t i = 0; i < max; i++) {
         const auto& list = read_uint32_list();
-        size_t llen = list.size();
-        ld.list_sizes[i] = list.size();
-        ld.list_ptrs[i] = (uint32_t*)aligned_alloc(16, llen * sizeof(uint32_t));
-        for (size_t j = 0; j < llen; j++)
-            ld.list_ptrs[i][j] = list[j];
-        ld.num_postings += llen;
+        if (i >= skip) {
+            size_t llen = list.size();
+            ld.list_sizes[i - skip] = list.size();
+            ld.list_ptrs[i - skip]
+                = (uint32_t*)aligned_alloc(16, llen * sizeof(uint32_t));
+            for (size_t j = 0; j < llen; j++)
+                ld.list_ptrs[i - skip][j] = list[j];
+            ld.num_postings += llen;
+        }
     }
     fprintf(stderr, "num_lists = %lu\n", ld.num_lists);
     fprintf(stderr, "num_postings = %lu\n", ld.num_postings);

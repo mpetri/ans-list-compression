@@ -1,0 +1,15 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/*.bin": true,
+        "**/*.a": true,
+        "**/*.o": true,
+        "**/*.txt": true,
+        "**/*.x": true,
+        "**/*.metadata": true,
+        "**/.DS_Store": true
+    }
+}

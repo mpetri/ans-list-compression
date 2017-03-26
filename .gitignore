@@ -3,3 +3,7 @@ benchmark
 test
 remove-nonfull-blocks
 *.a
+*.bin
+*.metadata
+*.x
+*.txt

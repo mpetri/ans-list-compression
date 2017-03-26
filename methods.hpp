@@ -4,8 +4,8 @@
 #include "FastPFor-master/headers/optpfor.h"
 #include "FastPFor-master/headers/simple16.h"
 #include "FastPFor-master/headers/variablebyte.h"
-#include "ans-simple.hpp"
-#include "ans-vbyte.hpp"
+#include "ans-pfor.hpp"
+#include "ans-vbyte-single.hpp"
 #include "compress_qmx.h"
 #include "interp.hpp"
 

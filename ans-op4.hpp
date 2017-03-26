@@ -6,7 +6,7 @@
 #include "util.hpp"
 
 template <uint32_t t_block_size = 128, uint32_t t_frame_size = 4096>
-struct ans_pfor {
+struct ans_op4 {
 private:
     // clang-format off
     const std::vector<std::pair<uint32_t, uint32_t> > thresholds
@@ -46,12 +46,52 @@ private:
         }
         return thresholds.size() - 1;
     }
+    uint8_t pick_model_opt(const uint32_t* in, size_t block_size)
+    {
+        // (1) check if uniform
+        uint32_t max_val = 0;
+        for (size_t i = 0; i < block_size; i++) {
+            max_val = std::max(max_val, in[i]);
+        }
+        if (max_val == 1)
+            return 0;
+
+        // (2) for each model determine the actual size of the
+        // encoding
+        size_t best_encoding_bytes = std::numeric_limits<size_t>::max();
+        size_t best_encoding_id = 0;
+        for (size_t i = 1; i < models.size(); i++) {
+            size_t bytes = determine_encoding_size(models[i], in, block_size);
+            if (best_encoding_bytes > bytes) {
+                best_encoding_bytes = bytes;
+                best_encoding_id = i;
+            }
+        }
+        return best_encoding_id;
+    }
+
+    template <class t_model>
+    size_t determine_encoding_size(
+        const t_model& m, const uint32_t* in, size_t n)
+    {
+        size_t num_bytes = 4; // for the final state
+        uint32_t state = 0;
+        for (size_t i = 0; i < n; i++) {
+            uint32_t num = in[n - i - 1];
+            if (num > m.max_sym_encodeable) { // exception case!
+                num_bytes += vbyte_size(num - (m.max_sym_encodeable + 1));
+                num = EXCEPT_MARKER;
+            }
+            state = ans_byte_fake_encode(m, state, num, num_bytes);
+        }
+        return num_bytes;
+    }
 
 public:
     bool required_increasing = false;
     std::string name()
     {
-        return "ans_pfor_M" + std::to_string(t_frame_size) + "_B"
+        return "ans_op4_M" + std::to_string(t_frame_size) + "_B"
             + std::to_string(t_block_size);
     }
     void init(const list_data& input, uint32_t* out, size_t& nvalue)
@@ -98,7 +138,7 @@ public:
         // (2) create models using the computed freq table
         for (size_t i = 0; i < thresholds.size(); i++) {
             models.emplace_back(
-                ans_byte_encode_model<t_frame_size>(freqs[i], false));
+                ans_byte_encode_model<t_frame_size>(freqs[i], true));
         }
 
         // (3) output the models
@@ -126,6 +166,7 @@ public:
         dmodels.resize(thresholds.size());
         for (size_t i = 0; i < dmodels.size(); i++) {
             size_t max = vbyte_decode_u32(in8);
+            dmodels[i].max_sym_encodeable = max - 1;
             uint32_t base = 0;
             for (size_t j = 0; j < max; j++) {
                 uint16_t cur_freq = vbyte_decode_u32(in8);
@@ -148,7 +189,6 @@ public:
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& nvalue)
     {
-        auto max_ans_value = thresholds.back().second;
         size_t num_blocks = len / t_block_size;
         size_t last_block_size = len % t_block_size;
         if (last_block_size) {
@@ -164,21 +204,10 @@ public:
         }
         for (size_t j = 0; j < num_blocks; j++) {
             size_t block_offset = j * t_block_size;
-            uint32_t block_max = 0;
             size_t block_size = t_block_size;
             if (j + 1 == num_blocks)
                 block_size = last_block_size;
-            bool except = false;
-            for (size_t k = 0; k < block_size; k++) {
-                uint32_t num = in[block_offset + k];
-                if (num > max_ans_value) {
-                    num = EXCEPT_MARKER;
-                    except = true;
-                }
-                block_max = std::max(block_max, num);
-                auto model_id = pick_model(block_max, except);
-                block_models[j] = model_id;
-            }
+            block_models[j] = pick_model_opt(in + block_offset, block_size);
         }
         // (2) encode block types
         auto initout8 = reinterpret_cast<uint8_t*>(out);
@@ -210,9 +239,9 @@ public:
             auto exception_bytes = 0;
             for (size_t k = 0; k < block_size; k++) {
                 uint32_t num = in[block_offset + block_size - k - 1];
-                if (num > max_ans_value) { // exception case!
+                if (num > cur_model.max_sym_encodeable) { // exception case!
                     exception_bytes += vbyte_encode_reverse(
-                        out_ptr, num - (max_ans_value + 1));
+                        out_ptr, num - (cur_model.max_sym_encodeable + 1));
                     num = EXCEPT_MARKER;
                 }
                 state = ans_byte_encode(cur_model, state, num, out_ptr);
@@ -235,7 +264,6 @@ public:
     uint32_t* decodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t list_len)
     {
-        auto max_ans_value = thresholds.back().second;
         size_t num_blocks = list_len / t_block_size;
         size_t last_block_size = list_len % t_block_size;
         if (last_block_size) {
@@ -292,7 +320,7 @@ public:
                 uint32_t num = entry.sym;
                 if (num == EXCEPT_MARKER) {
                     auto fixup = vbyte_decode_u32(in8);
-                    num = max_ans_value + fixup + 1;
+                    num = dmodel.max_sym_encodeable + fixup + 1;
                 }
                 *out++ = num;
             }

@@ -18,11 +18,15 @@ struct norm_freq {
 };
 
 void ans_normalize_freqs(freq_table& freqs, std::vector<uint16_t>& nfreqs,
-    uint32_t frame_size, bool reserve_zero = true)
+    uint32_t frame_size, bool require_all_encodeable = true)
 {
     // (1) compute the counts
-    if (reserve_zero)
-        freqs[0] = 1;
+    if (require_all_encodeable) {
+        for (size_t i = 0; i < nfreqs.size(); i++) {
+            if (freqs[i] == 0)
+                freqs[i] = 1;
+        }
+    }
     uint64_t num_syms = 0;
     for (size_t i = 0; i < nfreqs.size(); i++) {
         num_syms += freqs[i];
@@ -111,6 +115,25 @@ inline uint32_t ans_byte_encode(
     return next;
 }
 
+template <class t_model>
+inline uint32_t ans_byte_fake_encode(
+    const t_model& model, uint32_t state, uint8_t sym, size_t& bytes_emitted)
+{
+
+    uint32_t freq = model.nfreqs[sym];
+    uint32_t base = model.base[sym];
+    // (1) normalize
+    uint32_t sym_range_upper_bound = model.sym_upper_bound[sym];
+    while (state >= sym_range_upper_bound) {
+        bytes_emitted++;
+        state = state >> constants::OUTPUT_BASE_LOG2;
+    }
+
+    // (2) transform state
+    uint32_t next = ((state / freq) * model.frame_size) + (state % freq) + base;
+    return next;
+}
+
 inline void ans_byte_encode_flush(uint32_t final_state, uint8_t*& out8)
 {
     out8 -= sizeof(uint32_t);
@@ -128,6 +151,7 @@ inline uint32_t ans_byte_decode_init(const uint8_t*& in8, size_t& encoding_size)
 }
 
 template <uint32_t t_frame_size> struct ans_byte_encode_model {
+    uint32_t max_sym_encodeable;
     std::vector<uint16_t> nfreqs;
     std::vector<uint16_t> base;
     std::vector<uint8_t> csum2sym;
@@ -136,6 +160,7 @@ template <uint32_t t_frame_size> struct ans_byte_encode_model {
     ans_byte_encode_model() {}
     ans_byte_encode_model(ans_byte_encode_model&& other)
     {
+        max_sym_encodeable = std::move(other.max_sym_encodeable);
         nfreqs = std::move(other.nfreqs);
         base = std::move(other.base);
         csum2sym = std::move(other.csum2sym);
@@ -143,6 +168,7 @@ template <uint32_t t_frame_size> struct ans_byte_encode_model {
     }
     ans_byte_encode_model& operator=(ans_byte_encode_model&& other)
     {
+        max_sym_encodeable = std::move(other.max_sym_encodeable);
         nfreqs = std::move(other.nfreqs);
         base = std::move(other.base);
         csum2sym = std::move(other.csum2sym);
@@ -152,14 +178,14 @@ template <uint32_t t_frame_size> struct ans_byte_encode_model {
     ans_byte_encode_model(freq_table& freqs, bool reserve_zero)
     {
         // (1) determine max symbol and allocate tables
-        uint8_t max_sym = 0;
+        max_sym_encodeable = 0;
         for (size_t i = 0; i < constants::MAX_SIGMA; i++) {
             if (freqs[i] != 0)
-                max_sym = i;
+                max_sym_encodeable = i;
         }
-        nfreqs.resize(max_sym + 1);
-        sym_upper_bound.resize(max_sym + 1);
-        base.resize(max_sym + 1);
+        nfreqs.resize(max_sym_encodeable + 1);
+        sym_upper_bound.resize(max_sym_encodeable + 1);
+        base.resize(max_sym_encodeable + 1);
         csum2sym.resize(t_frame_size);
         // (2) normalize frequencies
         ans_normalize_freqs(freqs, nfreqs, t_frame_size, reserve_zero);
@@ -187,6 +213,7 @@ struct dec_table_entry {
 };
 
 template <uint32_t t_frame_size> struct ans_byte_decode_model {
+    uint8_t max_sym_encodeable;
     static const uint32_t frame_size = t_frame_size;
     static const uint8_t frame_size_log2 = clog2(frame_size);
     static const uint32_t frame_size_mask = frame_size - 1;
@@ -283,6 +310,22 @@ inline uint32_t vbyte_encode_reverse(uint8_t*& out, uint32_t x)
         *out = ans_extract7bits<0>(x) | 128;
         return 5;
     }
+}
+
+inline uint32_t vbyte_size(uint32_t x)
+{
+    if (x < (1U << 7)) {
+        return 1;
+    } else if (x < (1U << 14)) {
+        return 2;
+    } else if (x < (1U << 21)) {
+        return 3;
+    } else if (x < (1U << 28)) {
+        return 4;
+    } else {
+        return 5;
+    }
+    return 6;
 }
 
 inline uint32_t vbyte_decode_u32(const uint8_t*& input)

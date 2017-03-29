@@ -21,16 +21,23 @@ void ans_normalize_freqs(freq_table& freqs, std::vector<uint16_t>& nfreqs,
     uint32_t frame_size, bool require_all_encodeable = true)
 {
     // (1) compute the counts
-    if (require_all_encodeable) {
-        for (size_t i = 0; i < nfreqs.size(); i++) {
-            if (freqs[i] == 0)
-                freqs[i] = 1;
-        }
-    }
+    // if (require_all_encodeable) {
+    //     for (size_t i = 0; i < nfreqs.size(); i++) {
+    //         if (freqs[i] == 0)
+    //             freqs[i] = 1;
+    //     }
+    // }
     uint64_t num_syms = 0;
     for (size_t i = 0; i < nfreqs.size(); i++) {
         num_syms += freqs[i];
     }
+
+    // // freqs[0] == 10%
+    // freqs[0] = (num_syms - freqs[0]) / 10;
+    // num_syms = 0;
+    // for (size_t i = 0; i < nfreqs.size(); i++) {
+    //     num_syms += freqs[i];
+    // }
 
     // (2) crude normalization
     uint32_t actual_freq_csum = 0;
@@ -217,6 +224,9 @@ template <uint32_t t_frame_size> struct ans_byte_decode_model {
     static const uint32_t frame_size = t_frame_size;
     static const uint8_t frame_size_log2 = clog2(frame_size);
     static const uint32_t frame_size_mask = frame_size - 1;
+    uint32_t freq[constants::MAX_SIGMA];
+    uint32_t base[constants::MAX_SIGMA];
+    uint32_t framesize[constants::MAX_SIGMA];
     dec_table_entry table[t_frame_size];
 };
 

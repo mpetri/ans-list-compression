@@ -6,9 +6,11 @@
 #include "FastPFor-master/headers/variablebyte.h"
 #include "ans-op4.hpp"
 #include "ans-pfor.hpp"
+#include "ans-vbyte-single-badapt.hpp"
 #include "ans-vbyte-single.hpp"
 #include "compress_qmx.h"
 #include "interp.hpp"
+
 
 struct interpolative {
     bool required_increasing = true;

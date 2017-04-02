@@ -20,7 +20,32 @@ inline uint32_t hi(uint64_t x)
     return res;
 }
 
+inline uint8_t lo(uint64_t x)
+{
+    if (x == 0)
+        return 0;
+    return __builtin_ctzll(x);
+}
+
 inline uint32_t read_int(uint32_t*& word, uint8_t& offset, const uint8_t len)
+{
+    uint32_t w1 = (*word) >> offset;
+    if ((offset = (offset + len)) >= 32) { // if offset+len > 32
+        if (offset == 32) {
+            offset &= 31;
+            ++word;
+            return w1;
+        } else {
+            offset &= 31;
+            return w1 | (((*(++word)) & lo_set[offset]) << (len - offset));
+        }
+    } else {
+        return w1 & lo_set[len];
+    }
+}
+
+inline uint32_t read_int(
+    const uint32_t*& word, uint8_t& offset, const uint8_t len)
 {
     uint32_t w1 = (*word) >> offset;
     if ((offset = (offset + len)) >= 32) { // if offset+len > 32
@@ -58,6 +83,44 @@ inline void write_int(
             ++word;
         }
     }
+}
+
+inline void write_unary_and_move(uint32_t*& word, uint32_t x, uint8_t& offset)
+{
+    while (x >= 32) {
+        write_int(word, 0, offset, 32);
+        x -= 32;
+    }
+    uint32_t xx = uint32_t(1) << x;
+    write_int(word, xx, offset, x + 1);
+}
+
+inline uint64_t read_unary_and_move(const uint32_t*& word, uint8_t& offset)
+{
+    uint32_t w = (*word) >> offset;
+    if (w) {
+        uint8_t r = lo(w);
+        offset = (offset + r + 1) & 31;
+        word += (offset == 0);
+        return r;
+    } else {
+        uint8_t rr = 0;
+        if (0 != (w = *(++word))) {
+            rr = lo(w) + 32 - offset;
+            offset = (offset + rr + 1) & 31;
+            word += (offset == 0);
+            return rr;
+        } else {
+            uint64_t cnt_1 = 1;
+            while (0 == (w = *(++word)))
+                ++cnt_1;
+            rr = lo(w) + 32 - offset;
+            offset = (offset + rr + 1) & 31;
+            word += (offset == 0);
+            return ((cnt_1) << 32) + rr;
+        }
+    }
+    return 0;
 }
 }
 

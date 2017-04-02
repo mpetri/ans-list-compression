@@ -1,8 +1,8 @@
 #include <iostream>
 #include <vector>
 
+#include "ans-packed.hpp"
 #include "cutil.hpp"
-#include "methods.hpp"
 #include "util.hpp"
 
 using encoding_stats = std::pair<std::chrono::nanoseconds, uint64_t>;
@@ -57,6 +57,26 @@ encoding_stats compress_lists(const list_data& ld, std::string output_prefix)
             list_starts[local_data.num_lists] = (out - initout);
             auto stop = std::chrono::high_resolution_clock::now();
             encoding_time_ns = stop - start;
+
+            // output stats
+            {
+                size_t total_bits = 0;
+                total_bits += bits_selector;
+                total_bits += bits_encsize;
+                total_bits += bits_enc;
+                total_bits += bits_flush;
+                total_bits += bits_flushopt;
+                total_bits += bits_align;
+                fprintf(stdout, "%u;%lu;%lu;%lu;%lu;%lu;%lu;%lu\n", comp.bs,
+                    bits_selector, bits_encsize, bits_enc, bits_flush,
+                    bits_flushopt, bits_align, total_bits);
+                bits_selector = 0;
+                bits_encsize = 0;
+                bits_enc = 0;
+                bits_flush = 0;
+                bits_flushopt = 0;
+                bits_align = 0;
+            }
         }
         write_u32s(out_file, initout, total_u32_written);
         fclose(out_file);
@@ -182,7 +202,13 @@ int main(int argc, char const* argv[])
     fprintff(stderr,
         "method;postings;lists;size_bits;encoding_time_ns;decoding_time_ns\n");
 
-    run<ans_vbyte_single_badapt<128, 4096> >(inputs, output_prefix);
+    run<ans_packed<64> >(inputs, output_prefix);
+    run<ans_packed<128> >(inputs, output_prefix);
+    run<ans_packed<256> >(inputs, output_prefix);
+    run<ans_packed<512> >(inputs, output_prefix);
+    run<ans_packed<1024> >(inputs, output_prefix);
+    run<ans_packed<2048> >(inputs, output_prefix);
+    // run<ans_vbyte_single_badapt<128, 4096> >(inputs, output_prefix);
     // run<ans_vbyte_single<4096> >(inputs, output_prefix);
     // run<ans_vbyte_single<2048> >(inputs, output_prefix);
     // run<ans_vbyte_single<1024> >(inputs, output_prefix);

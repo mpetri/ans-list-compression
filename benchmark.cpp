@@ -206,8 +206,6 @@ int main(int argc, char const* argv[])
     run<ans_packed<128> >(inputs, output_prefix);
     run<ans_packed<256> >(inputs, output_prefix);
     run<ans_packed<512> >(inputs, output_prefix);
-    run<ans_packed<1024> >(inputs, output_prefix);
-    run<ans_packed<2048> >(inputs, output_prefix);
     // run<ans_vbyte_single_badapt<128, 4096> >(inputs, output_prefix);
     // run<ans_vbyte_single<4096> >(inputs, output_prefix);
     // run<ans_vbyte_single<2048> >(inputs, output_prefix);

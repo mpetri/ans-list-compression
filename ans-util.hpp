@@ -62,6 +62,68 @@ void print_array(
     fprintf(stderr, "]\n");
 }
 
+template <class t_vec>
+t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
+{
+    t_vec freqs = mag_freqs;
+    uint8_t n = 0;
+    for (size_t i = 0; i < freqs.size(); i++) {
+        if (freqs[i] != 0)
+            n = i + 1;
+    }
+    print_array(freqs.begin(), n, "F0");
+    /* first phase in scaling process, distribute out the
+       last bucket, assume it is the smallest n(s) area, scale
+       the rest by the same amount */
+    auto bucket_size = ans_uniq_vals_in_mag(n - 1);
+    double C = 0.5 * bucket_size / freqs[n - 1];
+    fprintf(stderr, "bucket_max = %lu C = %lf\n", bucket_size, C);
+    for (size_t m = 0; m < n; m++) {
+        bucket_size = ans_uniq_vals_in_mag(m);
+        freqs[m] = 0.5 + freqs[m] * C / bucket_size;
+        if (freqs[m] < 1) {
+            freqs[m] = 1;
+        }
+    }
+    print_array(freqs.begin(), n, "F1");
+
+    /* now, what does it all add up to? */
+    uint64_t M = 0;
+    for (size_t m = 0; m < n; m++) {
+        M += freqs[m] * ans_uniq_vals_in_mag(m);
+    }
+    /* fourth phase, round up to a power of two and then redistribute */
+    uint64_t target_power = next_power_of_two(M);
+    uint64_t excess = target_power - M;
+    fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
+    /* flow that excess count backwards to the beginning of
+       the selectors array, spreading it out across the buckets...
+    */
+    for (int8_t m = int8_t(n - 1); m >= 0; m--) {
+        double ratio = 1.0 * excess / M;
+        uint64_t adder = ratio * freqs[m];
+        excess -= ans_uniq_vals_in_mag(m) * adder;
+        M -= ans_uniq_vals_in_mag(m) * freqs[m];
+        freqs[m] += adder;
+    }
+    fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
+    print_array(freqs.begin(), n, "NC");
+
+    if (excess != 0) {
+        freqs[0] += excess;
+    }
+
+    M = 0;
+    for (size_t i = 0; i < n; i++) {
+        M += int64_t(freqs[i] * ans_uniq_vals_in_mag(i));
+    }
+    if (!is_power_of_two(M)) {
+        quit("ERROR! not power of 2 after normalization = %lu", M);
+    }
+
+    return freqs;
+}
+
 template <class t_vec> t_vec normalize_power_of_two(const t_vec& mags)
 {
     t_vec pot_cnts = mags;

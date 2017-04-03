@@ -66,7 +66,7 @@ public:
         }
 
         // (1) normalize such that the normalized freqs sum to a power of 2
-        norm_mags = normalize_power_of_two(mags);
+        norm_mags = normalize_power_of_two_alistair(mags);
 
         // (2) init the model params
         init_model();

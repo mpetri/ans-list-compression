@@ -153,18 +153,18 @@ std::vector<uint64_t> normalize_freqs_power_of_two_alistair(
 {
     std::vector<uint64_t> nfreqs(freqs.begin(), freqs.end());
     uint32_t n = 0;
-    uint64_t cur_sum = 0;
+    uint64_t initial_sum = 0;
     for (size_t i = 1; i < freqs.size(); i++) {
         if (freqs[i] != 0) {
             n = i + 1;
-            cur_sum += freqs[i];
+            initial_sum += freqs[i];
         }
     }
     // print_array(nfreqs.begin(), n, "N0");
     /* first phase in scaling process, distribute out the
        last bucket, assume it is the smallest n(s) area, scale
        the rest by the same amount */
-    double C = double(target_power) / double(cur_sum);
+    double C = double(target_power) / double(initial_sum);
     // fprintf(stderr, "C = %lf\n", C);
     for (size_t i = 1; i < n; i++) {
         nfreqs[i] = 0.95 * nfreqs[i] * C;
@@ -208,6 +208,19 @@ std::vector<uint64_t> normalize_freqs_power_of_two_alistair(
     if (!is_power_of_two(M)) {
         quit("ERROR! not power of 2 after normalization = %lu", M);
     }
+
+    for (size_t i = 0; i < n; i++) {
+        auto num_uniq = 1;
+        auto initial_freq = freqs[i];
+        auto initial_prob = double(initial_freq) / double(initial_sum);
+        auto final_prob = double(nfreqs[i]) / double(M);
+        fprintf(stderr,
+            "TABLE sym=%lu\tbucket=%lu\tmin=%lu\tmax=%lu\tif=%lu\tnf=%lu\tip=%"
+            "lf\tnp=%lf\n",
+            i, num_uniq, i, i, initial_freq, freqs[i], initial_prob,
+            final_prob);
+    }
+    fprintf(stderr, "TABLE\n");
 
     return nfreqs;
 }

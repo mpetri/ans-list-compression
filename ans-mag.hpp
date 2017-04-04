@@ -16,10 +16,13 @@ public:
     uint64_t mask_M;
     uint64_t norm_lower_bound;
     std::vector<uint32_t> csum2sym;
+    uint64_t total_max_val;
 
 public:
     ans_mag_model(const uint8_t*& in8)
     {
+        total_max_val = ans_vbyte_decode_u64(in8);
+
         // (1) read the normalized magnitudes
         for (size_t i = 0; i < norm_mags.size(); i++) {
             norm_mags[i] = ans_vbyte_decode_u64(in8);
@@ -29,7 +32,8 @@ public:
         init_model();
     }
     ans_mag_model(ans_mag_model&&) = default;
-    ans_mag_model(const mag_table& mags)
+    ans_mag_model(const mag_table& mags, uint32_t maxv)
+        : total_max_val(maxv)
     {
         // (0) if all is 0 do nothing
         if (std::all_of(mags.cbegin(), mags.cend(),
@@ -38,7 +42,7 @@ public:
         }
 
         // (1) normalize such that the normalized freqs sum to a power of 2
-        norm_mags = normalize_power_of_two_alistair(mags);
+        norm_mags = normalize_power_of_two_alistair(mags, total_max_val);
 
         // (2) init the model params
         init_model();
@@ -46,26 +50,18 @@ public:
 
     void init_model()
     {
-        // (2) figure out max mag and max value
-        uint64_t max_num_representable = 0;
-        for (size_t i = 0; i < norm_mags.size(); i++) {
-            if (norm_mags[i] != 0) {
-                max_num_representable = ans_max_val_in_mag(i);
-            }
-        }
+        // (1) allocate space
+        normalized_freqs.resize(total_max_val + 1);
+        base.resize(total_max_val + 1);
+        sym_upper_bound.resize(total_max_val + 1);
 
-        // (3) allocate space
-        normalized_freqs.resize(max_num_representable + 1);
-        base.resize(max_num_representable + 1);
-        sym_upper_bound.resize(max_num_representable + 1);
-
-        // (4) fill the tables
+        // (2) fill the tables
         uint64_t cumsum = 0;
         for (size_t i = 0; i < norm_mags.size(); i++) {
             if (norm_mags[i] == 0)
                 continue;
             auto min_val = ans_min_val_in_mag(i);
-            auto max_val = ans_max_val_in_mag(i);
+            auto max_val = ans_max_val_in_mag(i, total_max_val);
             for (size_t j = min_val; j <= max_val; j++) {
                 normalized_freqs[j] = norm_mags[i];
                 base[j] = cumsum;
@@ -138,6 +134,7 @@ public:
     }
     void write(uint8_t*& out8) const
     {
+        ans_vbyte_encode_u64(out8, total_max_val);
         for (size_t i = 0; i < norm_mags.size(); i++) {
             ans_vbyte_encode_u64(out8, norm_mags[i]);
         }

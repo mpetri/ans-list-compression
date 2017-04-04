@@ -8,11 +8,14 @@
 #include "bits.hpp"
 #include "util.hpp"
 
-uint32_t ans_max_val_in_mag(uint8_t mag)
+uint32_t ans_max_val_in_mag(uint8_t mag, uint32_t max_val)
 {
-    if (mag == 0)
-        return 1;
-    return (1ULL << (mag));
+    uint32_t maxv = 1;
+    if (mag != 0)
+        maxv = (1ULL << (mag));
+    if (maxv > max_val)
+        maxv = max_val;
+    return maxv;
 }
 
 uint32_t ans_min_val_in_mag(uint8_t mag)
@@ -22,9 +25,9 @@ uint32_t ans_min_val_in_mag(uint8_t mag)
     return (1ULL << (mag - 1)) + 1;
 }
 
-uint32_t ans_uniq_vals_in_mag(uint8_t mag)
+uint32_t ans_uniq_vals_in_mag(uint8_t mag, uint32_t max_val)
 {
-    return ans_max_val_in_mag(mag) - ans_min_val_in_mag(mag) + 1;
+    return ans_max_val_in_mag(mag, max_val) - ans_min_val_in_mag(mag) + 1;
 }
 
 uint8_t ans_magnitude(uint32_t x)
@@ -64,11 +67,11 @@ void print_array(
 }
 
 template <class t_vec>
-t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
+t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
 {
     uint64_t initial_sum = 0;
     for (size_t i = 0; i < mag_freqs.size(); i++) {
-        initial_sum += mag_freqs[i] * ans_uniq_vals_in_mag(i);
+        initial_sum += mag_freqs[i] * ans_uniq_vals_in_mag(i, max_val);
     }
 
     t_vec freqs = mag_freqs;
@@ -81,11 +84,11 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
     /* first phase in scaling process, distribute out the
        last bucket, assume it is the smallest n(s) area, scale
        the rest by the same amount */
-    auto bucket_size = ans_uniq_vals_in_mag(n - 1);
+    auto bucket_size = ans_uniq_vals_in_mag(n - 1, max_val);
     double C = 0.5 * bucket_size / freqs[n - 1];
     // fprintf(stderr, "bucket_max = %lu C = %lf\n", bucket_size, C);
     for (size_t m = 0; m < n; m++) {
-        bucket_size = ans_uniq_vals_in_mag(m);
+        bucket_size = ans_uniq_vals_in_mag(m, max_val);
         freqs[m] = 0.5 + freqs[m] * C / bucket_size;
         if (freqs[m] < 1) {
             freqs[m] = 1;
@@ -96,7 +99,7 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
     /* now, what does it all add up to? */
     uint64_t M = 0;
     for (size_t m = 0; m < n; m++) {
-        M += freqs[m] * ans_uniq_vals_in_mag(m);
+        M += freqs[m] * ans_uniq_vals_in_mag(m, max_val);
     }
     /* fourth phase, round up to a power of two and then redistribute */
     uint64_t target_power = next_power_of_two(M);
@@ -108,8 +111,8 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
     for (int8_t m = int8_t(n - 1); m >= 0; m--) {
         double ratio = 1.0 * excess / M;
         uint64_t adder = ratio * freqs[m];
-        excess -= ans_uniq_vals_in_mag(m) * adder;
-        M -= ans_uniq_vals_in_mag(m) * freqs[m];
+        excess -= ans_uniq_vals_in_mag(m, max_val) * adder;
+        M -= ans_uniq_vals_in_mag(m, max_val) * freqs[m];
         freqs[m] += adder;
     }
     // fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
@@ -121,7 +124,7 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
 
     M = 0;
     for (size_t i = 0; i < n; i++) {
-        M += int64_t(freqs[i] * ans_uniq_vals_in_mag(i));
+        M += int64_t(freqs[i] * ans_uniq_vals_in_mag(i, max_val));
     }
     if (!is_power_of_two(M)) {
         quit("ERROR! not power of 2 after normalization = %lu", M);
@@ -129,13 +132,14 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
 
     for (size_t i = 0; i < n; i++) {
         auto minv = ans_min_val_in_mag(i);
-        auto maxv = ans_max_val_in_mag(i);
-        auto num_uniq = ans_uniq_vals_in_mag(i);
+        auto maxv = ans_max_val_in_mag(i, max_val);
+        auto num_uniq = ans_uniq_vals_in_mag(i, max_val);
         auto initial_freq = mag_freqs[i];
-        auto initial_prob = double(initial_freq * ans_uniq_vals_in_mag(i))
+        auto initial_prob
+            = double(initial_freq * ans_uniq_vals_in_mag(i, max_val))
             / double(initial_sum);
         auto final_prob
-            = double(freqs[i] * ans_uniq_vals_in_mag(i)) / double(M);
+            = double(freqs[i] * ans_uniq_vals_in_mag(i, max_val)) / double(M);
         fprintf(stderr,
             "TABLE mag=%lu\tbucket=%lu\tmin=%lu\tmax=%lu\tif=%lu\tnf=%lu\tip=%"
             "lf\tnp=%lf\n",
@@ -225,99 +229,103 @@ std::vector<uint64_t> normalize_freqs_power_of_two_alistair(
     return nfreqs;
 }
 
-template <class t_vec> t_vec normalize_power_of_two(const t_vec& mags)
-{
-    t_vec pot_cnts = mags;
-    // (1) compute desired probs
-    uint64_t total_cnt = std::accumulate(mags.begin(), mags.end(), 0ULL);
-    std::vector<double> desired_probs(mags.size());
-    uint8_t max_freq = 0;
-    uint8_t max_mag = 0;
-    for (size_t i = 0; i < mags.size(); i++) {
-        desired_probs[i] = double(mags[i]) / double(total_cnt);
-        if (mags[i] > mags[max_freq])
-            max_freq = i;
-        if (mags[i] != 0)
-            max_mag = i;
-    }
+// template <class t_vec> t_vec normalize_power_of_two(const t_vec& mags)
+// {
+//     t_vec pot_cnts = mags;
+//     // (1) compute desired probs
+//     uint64_t total_cnt = std::accumulate(mags.begin(), mags.end(), 0ULL);
+//     std::vector<double> desired_probs(mags.size());
+//     uint8_t max_freq = 0;
+//     uint8_t max_mag = 0;
+//     for (size_t i = 0; i < mags.size(); i++) {
+//         desired_probs[i] = double(mags[i]) / double(total_cnt);
+//         if (mags[i] > mags[max_freq])
+//             max_freq = i;
+//         if (mags[i] != 0)
+//             max_mag = i;
+//     }
 
-    // (2) compute the initial counts
-    uint64_t initial_sum = 0;
-    uint16_t max_val = std::min(uint32_t((max_mag + 1) * 512),
-        uint32_t(std::numeric_limits<uint16_t>::max()));
-    uint32_t value_sum = (1 / desired_probs[max_freq]) * max_val;
-    for (size_t i = 0; i < mags.size(); i++) {
-        initial_sum += (desired_probs[i] * value_sum) / ans_uniq_vals_in_mag(i);
-    }
-    uint64_t target_power = next_power_of_two(initial_sum);
-    uint64_t max_target_power = 1ULL << 26;
-    size_t i = 0;
-    while (i < mags.size()) {
-        if (mags[i] != 0) {
-            double cnt
-                = (target_power * desired_probs[i]) / ans_uniq_vals_in_mag(i);
-            pot_cnts[i] = cnt;
-            if (pot_cnts[i] == 0) {
-                // always has to be at least 1. try to increase target power and
-                // retry
-                if (target_power != max_target_power) {
-                    target_power = next_power_of_two(target_power);
-                    i = 0;
-                    continue;
-                } else {
-                    pot_cnts[i] = 1;
-                }
-            }
-        } else {
-            pot_cnts[i] = 0;
-        }
-        ++i;
-    }
-    int64_t cur_cnt = 0;
-    for (size_t i = 0; i < mags.size(); i++) {
-        cur_cnt += int64_t(pot_cnts[i] * ans_uniq_vals_in_mag(i));
-    }
-    int64_t difference = target_power - cur_cnt;
-    if (difference != 0) {
-        if (difference < 0) { // we have to decrease some counts
-            uint64_t decrease_total = uint64_t(-difference);
-            uint64_t decrease_per_mag = decrease_total / (max_mag);
-            for (size_t i = max_mag; i != 0; i--) {
-                uint64_t val = decrease_per_mag / ans_uniq_vals_in_mag(i);
-                if (val >= pot_cnts[i])
-                    val = pot_cnts[i] - 1;
-                pot_cnts[i] -= val;
-                decrease_total -= val * ans_uniq_vals_in_mag(i);
-            }
-            if (decrease_total) {
-                pot_cnts[0] -= decrease_total;
-            }
-        } else { // we have to increase some counts
-            uint64_t increase_total = difference;
-            uint64_t increase_per_mag = increase_total / (max_mag);
-            for (size_t i = max_mag; i != 0; i--) {
-                pot_cnts[i] += increase_per_mag / ans_uniq_vals_in_mag(i);
-                increase_total -= (increase_per_mag / ans_uniq_vals_in_mag(i))
-                    * ans_uniq_vals_in_mag(i);
-            }
-            if (increase_total) {
-                pot_cnts[0] += increase_total;
-            }
-        }
-    }
+//     // (2) compute the initial counts
+//     uint64_t initial_sum = 0;
+//     uint16_t max_val = std::min(uint32_t((max_mag + 1) * 512),
+//         uint32_t(std::numeric_limits<uint16_t>::max()));
+//     uint32_t value_sum = (1 / desired_probs[max_freq]) * max_val;
+//     for (size_t i = 0; i < mags.size(); i++) {
+//         initial_sum += (desired_probs[i] * value_sum) /
+//         ans_uniq_vals_in_mag(i);
+//     }
+//     uint64_t target_power = next_power_of_two(initial_sum);
+//     uint64_t max_target_power = 1ULL << 26;
+//     size_t i = 0;
+//     while (i < mags.size()) {
+//         if (mags[i] != 0) {
+//             double cnt
+//                 = (target_power * desired_probs[i]) /
+//                 ans_uniq_vals_in_mag(i);
+//             pot_cnts[i] = cnt;
+//             if (pot_cnts[i] == 0) {
+//                 // always has to be at least 1. try to increase target power
+//                 and
+//                 // retry
+//                 if (target_power != max_target_power) {
+//                     target_power = next_power_of_two(target_power);
+//                     i = 0;
+//                     continue;
+//                 } else {
+//                     pot_cnts[i] = 1;
+//                 }
+//             }
+//         } else {
+//             pot_cnts[i] = 0;
+//         }
+//         ++i;
+//     }
+//     int64_t cur_cnt = 0;
+//     for (size_t i = 0; i < mags.size(); i++) {
+//         cur_cnt += int64_t(pot_cnts[i] * ans_uniq_vals_in_mag(i));
+//     }
+//     int64_t difference = target_power - cur_cnt;
+//     if (difference != 0) {
+//         if (difference < 0) { // we have to decrease some counts
+//             uint64_t decrease_total = uint64_t(-difference);
+//             uint64_t decrease_per_mag = decrease_total / (max_mag);
+//             for (size_t i = max_mag; i != 0; i--) {
+//                 uint64_t val = decrease_per_mag / ans_uniq_vals_in_mag(i);
+//                 if (val >= pot_cnts[i])
+//                     val = pot_cnts[i] - 1;
+//                 pot_cnts[i] -= val;
+//                 decrease_total -= val * ans_uniq_vals_in_mag(i);
+//             }
+//             if (decrease_total) {
+//                 pot_cnts[0] -= decrease_total;
+//             }
+//         } else { // we have to increase some counts
+//             uint64_t increase_total = difference;
+//             uint64_t increase_per_mag = increase_total / (max_mag);
+//             for (size_t i = max_mag; i != 0; i--) {
+//                 pot_cnts[i] += increase_per_mag / ans_uniq_vals_in_mag(i);
+//                 increase_total -= (increase_per_mag /
+//                 ans_uniq_vals_in_mag(i))
+//                     * ans_uniq_vals_in_mag(i);
+//             }
+//             if (increase_total) {
+//                 pot_cnts[0] += increase_total;
+//             }
+//         }
+//     }
 
-    // (3) adjust to powers of two
-    cur_cnt = 0;
-    for (size_t i = 0; i < mags.size(); i++) {
-        cur_cnt += int64_t(pot_cnts[i] * ans_uniq_vals_in_mag(i));
-    }
-    int64_t diff = int64_t(target_power) - cur_cnt;
-    if (diff != 0) {
-        quit("ERROR! not power of 2 after normalization = %ld", diff);
-    }
+//     // (3) adjust to powers of two
+//     cur_cnt = 0;
+//     for (size_t i = 0; i < mags.size(); i++) {
+//         cur_cnt += int64_t(pot_cnts[i] * ans_uniq_vals_in_mag(i));
+//     }
+//     int64_t diff = int64_t(target_power) - cur_cnt;
+//     if (diff != 0) {
+//         quit("ERROR! not power of 2 after normalization = %ld", diff);
+//     }
 
-    return pot_cnts;
-}
+//     return pot_cnts;
+// }
 
 template <uint32_t i> inline uint8_t ans_extract7bits(const uint64_t val)
 {

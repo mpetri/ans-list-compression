@@ -31,6 +31,8 @@ public:
         std::vector<mag_table> mags(constants::NUM_MAGS);
         for (auto& mt : mags)
             mt.fill(0);
+
+        std::vector<uint32_t> max_vals(constants::NUM_MAGS, 0);
         for (size_t i = 0; i < input.num_lists; i++) {
             const auto& cur_list = input.list_ptrs[i];
             size_t n = input.list_sizes[i];
@@ -49,6 +51,7 @@ public:
                 for (size_t k = 0; k < block_size; k++) {
                     uint32_t num = cur_list[block_offset + k];
                     uint8_t mag = ans_magnitude(num);
+                    max_vals[model_id] = std::max(num, max_vals[model_id]);
                     mags[model_id][mag]++;
                 }
             }
@@ -56,7 +59,7 @@ public:
 
         // (2) create the models
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            models.emplace_back(ans_mag_model(mags[i]));
+            models.emplace_back(ans_mag_model(mags[i], max_vals[i]));
         }
 
         // (4) write out models

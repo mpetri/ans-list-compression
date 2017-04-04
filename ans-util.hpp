@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <numeric>
 #include <vector>
 
 #include "bits.hpp"
@@ -71,13 +72,13 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
         if (freqs[i] != 0)
             n = i + 1;
     }
-    print_array(freqs.begin(), n, "F0");
+    // print_array(freqs.begin(), n, "F0");
     /* first phase in scaling process, distribute out the
        last bucket, assume it is the smallest n(s) area, scale
        the rest by the same amount */
     auto bucket_size = ans_uniq_vals_in_mag(n - 1);
     double C = 0.5 * bucket_size / freqs[n - 1];
-    fprintf(stderr, "bucket_max = %lu C = %lf\n", bucket_size, C);
+    // fprintf(stderr, "bucket_max = %lu C = %lf\n", bucket_size, C);
     for (size_t m = 0; m < n; m++) {
         bucket_size = ans_uniq_vals_in_mag(m);
         freqs[m] = 0.5 + freqs[m] * C / bucket_size;
@@ -85,7 +86,7 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
             freqs[m] = 1;
         }
     }
-    print_array(freqs.begin(), n, "F1");
+    // print_array(freqs.begin(), n, "F1");
 
     /* now, what does it all add up to? */
     uint64_t M = 0;
@@ -95,7 +96,7 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
     /* fourth phase, round up to a power of two and then redistribute */
     uint64_t target_power = next_power_of_two(M);
     uint64_t excess = target_power - M;
-    fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
+    // fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
     /* flow that excess count backwards to the beginning of
        the selectors array, spreading it out across the buckets...
     */
@@ -106,8 +107,8 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
         M -= ans_uniq_vals_in_mag(m) * freqs[m];
         freqs[m] += adder;
     }
-    fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
-    print_array(freqs.begin(), n, "NC");
+    // fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
+    // print_array(freqs.begin(), n, "NC");
 
     if (excess != 0) {
         freqs[0] += excess;
@@ -122,6 +123,71 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
     }
 
     return freqs;
+}
+
+template <class t_vec>
+std::vector<uint64_t> normalize_freqs_power_of_two_alistair(
+    const t_vec& freqs, size_t target_power)
+{
+    std::vector<uint64_t> nfreqs(freqs.begin(), freqs.end());
+    uint32_t n = 0;
+    uint64_t cur_sum = 0;
+    for (size_t i = 1; i < freqs.size(); i++) {
+        if (freqs[i] != 0) {
+            n = i + 1;
+            cur_sum += freqs[i];
+        }
+    }
+    // print_array(nfreqs.begin(), n, "N0");
+    /* first phase in scaling process, distribute out the
+       last bucket, assume it is the smallest n(s) area, scale
+       the rest by the same amount */
+    double C = double(target_power) / double(cur_sum);
+    // fprintf(stderr, "C = %lf\n", C);
+    for (size_t i = 1; i < n; i++) {
+        nfreqs[i] = 0.95 * nfreqs[i] * C;
+        if (freqs[i] != 0 && nfreqs[i] < 1) {
+            nfreqs[i] = 1;
+        }
+    }
+    // print_array(nfreqs.begin(), n, "F1");
+
+    /* now, what does it all add up to? */
+    uint64_t M = 0;
+    for (size_t m = 0; m < n; m++) {
+        M += nfreqs[m];
+    }
+    /* fourth phase, round up to a power of two and then redistribute */
+    uint64_t excess = target_power - M;
+    // fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
+    /* flow that excess count backwards to the beginning of
+       the selectors array, spreading it out across the buckets...
+    */
+    for (int64_t m = int64_t(n - 1); m >= 1; m--) {
+        double ratio = double(excess) / double(M);
+        uint64_t adder = ratio * nfreqs[m];
+        // fprintf(stderr, "ratio = %lf adder = %lu nfreqs[%ld]=%lu\n", ratio,
+        //     adder, m, nfreqs[m]);
+
+        if (adder > excess) {
+            adder = excess;
+        }
+        excess -= adder;
+        M -= nfreqs[m];
+        nfreqs[m] += adder;
+    }
+    // fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
+    // print_array(nfreqs.begin(), n, "NC");
+
+    M = 0;
+    for (size_t i = 0; i < n; i++) {
+        M += nfreqs[i];
+    }
+    if (!is_power_of_two(M)) {
+        quit("ERROR! not power of 2 after normalization = %lu", M);
+    }
+
+    return nfreqs;
 }
 
 template <class t_vec> t_vec normalize_power_of_two(const t_vec& mags)

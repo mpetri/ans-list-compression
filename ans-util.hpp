@@ -66,6 +66,11 @@ void print_array(
 template <class t_vec>
 t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
 {
+    uint64_t initial_sum = 0;
+    for (size_t i = 0; i < mag_freqs.size(); i++) {
+        initial_sum += mag_freqs[i] * ans_uniq_vals_in_mag(i);
+    }
+
     t_vec freqs = mag_freqs;
     uint8_t n = 0;
     for (size_t i = 0; i < freqs.size(); i++) {
@@ -121,6 +126,23 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs)
     if (!is_power_of_two(M)) {
         quit("ERROR! not power of 2 after normalization = %lu", M);
     }
+
+    for (size_t i = 0; i < n; i++) {
+        auto minv = ans_min_val_in_mag(i);
+        auto maxv = ans_max_val_in_mag(i);
+        auto num_uniq = ans_uniq_vals_in_mag(i);
+        auto initial_freq = mag_freqs[i];
+        auto initial_prob = double(initial_freq * ans_uniq_vals_in_mag(i))
+            / double(initial_sum);
+        auto final_prob
+            = double(freqs[i] * ans_uniq_vals_in_mag(i)) / double(M);
+        fprintf(stderr,
+            "TABLE mag=%lu\tbucket=%lu\tmin=%lu\tmax=%lu\tif=%lu\tnf=%lu\tip=%"
+            "lf\tnp=%lf\n",
+            i, num_uniq, minv, maxv, initial_freq, freqs[i], initial_prob,
+            final_prob);
+    }
+    fprintf(stderr, "TABLE\n");
 
     return freqs;
 }
@@ -378,12 +400,6 @@ inline uint8_t ans_vbyte_size(uint64_t x)
     return 9;
 }
 
-inline uint64_t ans_vbyte_decode_u64(const uint8_t*& input)
-{
-    size_t enc_size = 123123123;
-    return ans_vbyte_decode_u64(input, enc_size);
-}
-
 inline uint64_t ans_vbyte_decode_u64(const uint8_t*& input, size_t& enc_size)
 {
     uint64_t x = 0;
@@ -398,4 +414,10 @@ inline uint64_t ans_vbyte_decode_u64(const uint8_t*& input, size_t& enc_size)
         shift += 7;
     }
     return x;
+}
+
+inline uint64_t ans_vbyte_decode_u64(const uint8_t*& input)
+{
+    size_t enc_size = 123123123;
+    return ans_vbyte_decode_u64(input, enc_size);
 }

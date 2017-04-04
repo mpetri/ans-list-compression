@@ -1,9 +1,8 @@
 #include <iostream>
 #include <vector>
 
-#include "ans-vbyte-single.hpp"
-#include "ans-vbyte-split.hpp"
 #include "cutil.hpp"
+#include "methods.hpp"
 #include "util.hpp"
 
 using encoding_stats = std::pair<std::chrono::nanoseconds, uint64_t>;
@@ -185,30 +184,13 @@ int main(int argc, char const* argv[])
 
     run<ans_vbyte_split<4096> >(inputs, output_prefix);
     run<ans_vbyte_single<4096> >(inputs, output_prefix);
-
-    // run<ans_vbyte_single_badapt<128, 4096> >(inputs, output_prefix);
-    // run<ans_vbyte_single<4096> >(inputs, output_prefix);
-    // run<ans_vbyte_single<2048> >(inputs, output_prefix);
-    // run<ans_vbyte_single<1024> >(inputs, output_prefix);
-    // run<ans_vbyte_single<512> >(inputs, output_prefix);
-    // run<ans_op4<128, 4096> >(inputs, output_prefix);
-    // run<ans_op4<256, 4096> >(inputs, output_prefix);
-    // run<ans_op4<512, 4096> >(inputs, output_prefix);
-    // run<ans_op4<1024, 4096> >(inputs, output_prefix);
-    // run<ans_pfor<128, 4096> >(inputs, output_prefix);
-    // run<ans_pfor<256, 4096> >(inputs, output_prefix);
-    // run<ans_pfor<512, 4096> >(inputs, output_prefix);
-    // run<ans_pfor<1024, 4096> >(inputs, output_prefix);
-    // run<ans_vbyte<128, 4096> >(inputs, output_prefix);
-    // run<ans_vbyte<128, 512> >(inputs, output_prefix);
-    // run<qmx>(inputs, output_prefix);
-    // run<vbyte>(inputs, output_prefix);
-    // run<op4<128> >(inputs, output_prefix);
-    // run<op4<256> >(inputs, output_prefix);
-    // run<op4<512> >(inputs, output_prefix);
-    // run<op4<1024> >(inputs, output_prefix);
-    // run<simple16>(inputs, output_prefix);
-    // run<interpolative>(inputs, output_prefix);
+    run<ans_packed<128> >(inputs, output_prefix);
+    run<ans_packed<256> >(inputs, output_prefix);
+    run<qmx>(inputs, output_prefix);
+    run<vbyte>(inputs, output_prefix);
+    run<op4<128> >(inputs, output_prefix);
+    run<simple16>(inputs, output_prefix);
+    run<interpolative>(inputs, output_prefix);
 
     return EXIT_SUCCESS;
 }

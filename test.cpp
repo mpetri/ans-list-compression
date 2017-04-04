@@ -238,3 +238,124 @@ TEST_CASE("Simple16 coding and decoding", "[simple16]")
 }
 
 TEST_CASE("QMX coding and decoding", "[qmx]") { test_method<qmx>(); }
+
+TEST_CASE("magnitude", "[ans-util]")
+{
+    SECTION("special cases")
+    {
+        REQUIRE(ans_magnitude(1) == 0);
+        REQUIRE(ans_magnitude(2) == 1);
+        REQUIRE(ans_magnitude(3) == 2);
+        REQUIRE(ans_magnitude(4) == 2);
+    }
+    SECTION("exact powers of 2")
+    {
+        for (uint8_t i = 1; i < 31; i++) {
+            REQUIRE(ans_magnitude(1ULL << i) == i);
+        }
+    }
+    SECTION("exact powers of 2 + 1")
+    {
+        for (uint8_t i = 1; i < 31; i++) {
+            REQUIRE(ans_magnitude((1ULL << i) + 1) == i + 1);
+        }
+    }
+    SECTION("everything small")
+    {
+        uint32_t max = std::numeric_limits<uint32_t>::max();
+        uint32_t max_small = 32768;
+        for (uint32_t i = 2; i < max_small; i++) {
+            uint8_t correct_mag = ceil(log2(i));
+            REQUIRE(ans_magnitude(i) == correct_mag);
+        }
+    }
+    SECTION("random stuff")
+    {
+        for (size_t i = 0; i < 100000; i++) {
+            uint32_t num = rand();
+            uint8_t correct_mag = ceil(log2(num));
+            REQUIRE(ans_magnitude(num) == correct_mag);
+        }
+    }
+}
+
+TEST_CASE("max_val_in_mag", "[ans-util]")
+{
+    REQUIRE(ans_max_val_in_mag(0) == 1);
+    for (uint8_t mag = 1; mag <= 31; mag++) {
+        REQUIRE(ans_max_val_in_mag(mag) == 1U << mag);
+    }
+}
+
+TEST_CASE("min_val_in_mag", "[ans-util]")
+{
+    REQUIRE(ans_min_val_in_mag(0) == 1);
+    for (uint8_t mag = 2; mag <= 31; mag++) {
+        REQUIRE(ans_min_val_in_mag(mag) == ((1U << (mag - 1)) + 1));
+    }
+}
+
+TEST_CASE("ans_uniq_vals_in_mag", "[ans-util]")
+{
+    REQUIRE(ans_uniq_vals_in_mag(0) == 1);
+    REQUIRE(ans_uniq_vals_in_mag(1) == 1);
+    REQUIRE(ans_uniq_vals_in_mag(2) == 2);
+    REQUIRE(ans_uniq_vals_in_mag(3) == 4);
+    REQUIRE(ans_uniq_vals_in_mag(4) == 8);
+    REQUIRE(ans_uniq_vals_in_mag(5) == 16);
+    REQUIRE(ans_uniq_vals_in_mag(6) == 32);
+    REQUIRE(ans_uniq_vals_in_mag(7) == 64);
+    REQUIRE(ans_uniq_vals_in_mag(8) == 128);
+    REQUIRE(ans_uniq_vals_in_mag(9) == 256);
+    REQUIRE(ans_uniq_vals_in_mag(10) == 512);
+    REQUIRE(ans_uniq_vals_in_mag(11) == 1024);
+    REQUIRE(ans_uniq_vals_in_mag(12) == 2 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(13) == 4 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(14) == 8 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(15) == 16 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(16) == 32 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(17) == 64 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(18) == 128 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(19) == 256 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(20) == 512 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(21) == 1024 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(22) == 2 * 1024 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(23) == 4 * 1024 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(24) == 8 * 1024 * 1024);
+    REQUIRE(ans_uniq_vals_in_mag(25) == 16 * 1024 * 1024);
+}
+
+TEST_CASE("next_power_of_two", "[ans-util]")
+{
+    REQUIRE(next_power_of_two(0) == 1);
+    REQUIRE(next_power_of_two(1) == 2);
+    REQUIRE(next_power_of_two(2) == 4);
+    REQUIRE(next_power_of_two(3) == 4);
+    REQUIRE(next_power_of_two(4) == 8);
+    REQUIRE(next_power_of_two(5) == 8);
+    REQUIRE(next_power_of_two(15) == 16);
+    REQUIRE(next_power_of_two(19) == 32);
+}
+
+TEST_CASE("normalize_power_of_two", "[ans-util]")
+{
+    SECTION("random stuff")
+    {
+        std::vector<uint32_t> A{ 42, 23, 10, 3, 1 };
+        auto B = normalize_power_of_two(A);
+        uint64_t cur_cnt = 0;
+        for (size_t i = 0; i < B.size(); i++) {
+            cur_cnt += B[i] * ans_uniq_vals_in_mag(i);
+        }
+        REQUIRE(is_power_of_two(cur_cnt));
+    }
+    {
+        std::vector<uint32_t> A{ 5121, 23, 10, 3, 1 };
+        auto B = normalize_power_of_two(A);
+        uint64_t cur_cnt = 0;
+        for (size_t i = 0; i < B.size(); i++) {
+            cur_cnt += B[i] * ans_uniq_vals_in_mag(i);
+        }
+        REQUIRE(is_power_of_two(cur_cnt));
+    }
+}

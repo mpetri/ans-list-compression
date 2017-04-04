@@ -1,4 +1,18 @@
 /*
+QMX README
+----------
+The source is released under the BSD license (you choose which one). 
+
+See (and please cite), in the ACM Digital Library (and on my website):
+
+A. Trotman (2014), Compression, SIMD, and Postings Lists. In Proceedings of the 19th Australasian Document Computing Symposium (ADCS 2014)
+
+taken from: http://www.cs.otago.ac.nz/homepages/andrew/papers/QMX.zip
+
+modified by Matthias Petrito align to u32 boundaries
+
+*/
+/*
         COMPRESS_QMX.H
         --------------
 */

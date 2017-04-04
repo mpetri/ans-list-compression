@@ -21,11 +21,6 @@ remove-nonfull-blocks.x: remove-nonfull-blocks.cpp *.hpp Makefile libFastPFor.a
 clean:
 	rm -f *.o *.a test.x benchmark.x remove-nonfull-blocks.x
 
-ans-test: ans-test.cpp *.hpp
-	g++ -O3 -g -msse4.2 -std=c++11 -Wall -o ans-test.x ans-test.cpp libFastPFor.a
-	./ans-test.x
-
-
 bsmall: benchmark.x
 	./benchmark.x ./freqs 2501 2500 < /mnt/d/list-freqs.txt
 

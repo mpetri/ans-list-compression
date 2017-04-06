@@ -8,6 +8,19 @@
 #include "bits.hpp"
 #include "util.hpp"
 
+inline uint8_t ans_median(uint8_t a, uint8_t b, uint8_t c)
+{
+    uint8_t med = 0;
+    if ((a <= b && b <= c) || (c <= b && b <= a)) {
+        med = b;
+    } else if ((b <= a && a <= c) || (c <= a && a <= b)) {
+        med = a;
+    } else {
+        med = c;
+    }
+    return med;
+}
+
 uint32_t ans_max_val_in_mag(uint8_t mag, uint32_t max_val)
 {
     uint32_t maxv = 1;

@@ -5,6 +5,7 @@
 #include "FastPFor-master/headers/simple16.h"
 #include "FastPFor-master/headers/variablebyte.h"
 #include "ans-packed.hpp"
+#include "ans-simple.hpp"
 #include "ans-vbyte-single.hpp"
 #include "ans-vbyte-split.hpp"
 #include "compress_qmx.h"

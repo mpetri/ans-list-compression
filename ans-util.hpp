@@ -75,19 +75,19 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
     }
 
     t_vec freqs = mag_freqs;
-    uint8_t n = 0;
+    uint8_t max_mag = 0;
     for (size_t i = 0; i < freqs.size(); i++) {
         if (freqs[i] != 0)
-            n = i + 1;
+            max_mag = i;
     }
     // print_array(freqs.begin(), n, "F0");
     /* first phase in scaling process, distribute out the
        last bucket, assume it is the smallest n(s) area, scale
        the rest by the same amount */
-    auto bucket_size = ans_uniq_vals_in_mag(n - 1, max_val);
-    double C = 0.5 * bucket_size / freqs[n - 1];
+    auto bucket_size = ans_uniq_vals_in_mag(max_mag, max_val);
+    double C = 0.5 * bucket_size / freqs[max_mag];
     // fprintf(stderr, "bucket_max = %lu C = %lf\n", bucket_size, C);
-    for (size_t m = 0; m < n; m++) {
+    for (size_t m = 0; m <= max_mag; m++) {
         bucket_size = ans_uniq_vals_in_mag(m, max_val);
         freqs[m] = 0.5 + freqs[m] * C / bucket_size;
         if (freqs[m] < 1) {
@@ -95,6 +95,21 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
         }
     }
     // print_array(freqs.begin(), n, "F1");
+    /* second step in scaling process, to make the first freq
+       less than or equal to TOPFREQ */
+    if (freqs[0] > constants::TOPFREQ) {
+        C = 1.0 * constants::TOPFREQ / freqs[0];
+        freqs[0] = constants::TOPFREQ;
+        /* scale all the others, rounding up so not zero anywhere,
+           and at the same time, spread right across the bucketed
+           range */
+        for (m = 1; m <= maxmag; m++) {
+            freqs[mag] = 0.5 + freqs[mag] * C;
+            if (freqs[mag] < 1) {
+                freqs[mag] = 1;
+            }
+        }
+    }
 
     /* now, what does it all add up to? */
     uint64_t M = 0;
@@ -108,7 +123,7 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
     /* flow that excess count backwards to the beginning of
        the selectors array, spreading it out across the buckets...
     */
-    for (int8_t m = int8_t(n - 1); m >= 0; m--) {
+    for (int8_t m = int8_t(maxmag); m >= 0; m--) {
         double ratio = 1.0 * excess / M;
         uint64_t adder = ratio * freqs[m];
         excess -= ans_uniq_vals_in_mag(m, max_val) * adder;

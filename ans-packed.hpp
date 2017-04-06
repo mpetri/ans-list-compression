@@ -79,6 +79,7 @@ public:
 
     const uint32_t* dec_init(const uint32_t* in)
     {
+        std::cerr << "dec_init() START" << std::endl;
         auto initin8 = reinterpret_cast<const uint8_t*>(in);
         auto in8 = initin8;
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
@@ -89,6 +90,7 @@ public:
             pbytes += sizeof(uint32_t) - (pbytes % (sizeof(uint32_t)));
         }
         size_t u32s = pbytes / sizeof(uint32_t);
+        std::cerr << "dec_init() STOP" << std::endl;
         return in + u32s;
     }
 

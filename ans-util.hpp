@@ -161,7 +161,8 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
         auto num_uniq = ans_uniq_vals_in_mag(i, max_val);
         auto initial_freq = mag_freqs[i];
         auto initial_prob
-            = double(initial_freq * ans_uniq_vals_in_mag(i,max_val)) / double(initial_sum);
+            = double(initial_freq * ans_uniq_vals_in_mag(i, max_val))
+            / double(initial_sum);
         auto final_prob
             = double(freqs[i] * ans_uniq_vals_in_mag(i, max_val)) / double(M);
         fprintf(stderr,
@@ -232,7 +233,7 @@ std::vector<uint64_t> normalize_freqs_power_of_two_alistair(
     }
     // fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
     // print_array(nfreqs.begin(), n, "NC");
-    if(excess != 0) {
+    if (excess != 0) {
         nfreqs[0] += excess;
     }
 

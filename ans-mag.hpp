@@ -11,7 +11,7 @@ public:
     std::vector<uint32_t> normalized_freqs;
     std::vector<uint64_t> base;
     std::vector<uint64_t> sym_upper_bound;
-    mag_table norm_mags = {{0}};
+    mag_table norm_mags = { { 0 } };
     uint8_t log2_M = 0;
     uint64_t mask_M = 0;
     uint64_t norm_lower_bound = 0;
@@ -27,11 +27,13 @@ public:
         bool all_zero = true;
         for (size_t i = 0; i < norm_mags.size(); i++) {
             norm_mags[i] = ans_vbyte_decode_u64(in8);
-            if(norm_mags[i] != 0) all_zero = false;
+            if (norm_mags[i] != 0)
+                all_zero = false;
         }
 
         // (1a) empty model??
-        if(all_zero) return;
+        if (all_zero)
+            return;
 
         // (2) init the model
         init_model();
@@ -43,6 +45,7 @@ public:
         // (0) if all is 0 do nothing
         if (std::all_of(mags.cbegin(), mags.cend(),
                 [](uint64_t i) { return i == 0; })) {
+            total_max_val = 0;
             return;
         }
 
@@ -69,7 +72,7 @@ public:
             auto max_val = ans_max_val_in_mag(i, total_max_val);
             for (size_t j = min_val; j <= max_val; j++) {
                 normalized_freqs[j] = norm_mags[i];
-                base[j] = cumsum;
+                base[j] = cumsum + 1;
                 cumsum += normalized_freqs[j];
             }
         }
@@ -111,6 +114,41 @@ public:
         uint64_t next = ((state / f) * M) + (state % f) + b;
         return next;
     }
+
+    uint64_t try_encode_u64(const uint32_t* in, size_t n) const
+    {
+        typedef unsigned int uint128_t __attribute__((mode(TI)));
+        uint128_t state = 0;
+        uint64_t num_encoded = 0;
+        const uint128_t max_state = std::numeric_limits<uint64_t>::max();
+        for (size_t i = 0; i < n; i++) {
+            auto num = in[i];
+            if (num > total_max_val || normalized_freqs[num] == 0)
+                break;
+            uint64_t f = normalized_freqs[num];
+            uint64_t b = base[num];
+
+            state = ((state / f) * M) + (state % f) + b;
+            if (state > max_state) {
+                break;
+            }
+            num_encoded++;
+        }
+        return num_encoded;
+    }
+
+    uint64_t encode_u64(const uint32_t* in, size_t n) const
+    {
+        uint64_t state = 0;
+        for (size_t i = 0; i < n; i++) {
+            auto num = in[i];
+            uint64_t f = normalized_freqs[num];
+            uint64_t b = base[num];
+            state = ((state / f) * M) + (state % f) + b;
+        }
+        return state;
+    }
+
     uint32_t decode(
         uint64_t& state, const uint8_t*& in8, size_t& enc_size) const
     {

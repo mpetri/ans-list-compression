@@ -10,7 +10,7 @@ libFastPFor.a:
 	ar rvs libFastPFor.a bitpacking.o bitpackingaligned.o bitpackingunaligned.o simdunalignedbitpacking.o simdbitpacking.o
 
 benchmark.x: *.hpp *.h benchmark.cpp Makefile libFastPFor.a
-	g++ -O3 -g  -msse4.2 -std=c++11 -Wall -o benchmark.x benchmark.cpp libFastPFor.a
+	g++ -O0 -g  -msse4.2 -std=c++11 -Wall -o benchmark.x benchmark.cpp libFastPFor.a
 
 test.x: test.cpp *.hpp Makefile libFastPFor.a
 	g++ -O3 -g  -msse4.2 -std=c++11 -Wall -o test.x test.cpp libFastPFor.a

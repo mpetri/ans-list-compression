@@ -11,12 +11,12 @@ public:
     std::vector<uint32_t> normalized_freqs;
     std::vector<uint64_t> base;
     std::vector<uint64_t> sym_upper_bound;
-    mag_table norm_mags;
-    uint8_t log2_M;
-    uint64_t mask_M;
-    uint64_t norm_lower_bound;
+    mag_table norm_mags = {{0}};
+    uint8_t log2_M = 0;
+    uint64_t mask_M = 0;
+    uint64_t norm_lower_bound = 0;
     std::vector<uint32_t> csum2sym;
-    uint64_t total_max_val;
+    uint64_t total_max_val = 0;
 
 public:
     ans_mag_model(const uint8_t*& in8)
@@ -24,9 +24,14 @@ public:
         total_max_val = ans_vbyte_decode_u64(in8);
 
         // (1) read the normalized magnitudes
+        bool all_zero = true;
         for (size_t i = 0; i < norm_mags.size(); i++) {
             norm_mags[i] = ans_vbyte_decode_u64(in8);
+            if(norm_mags[i] != 0) all_zero = false;
         }
+
+        // (1a) empty model??
+        if(all_zero) return;
 
         // (2) init the model
         init_model();

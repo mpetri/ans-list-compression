@@ -90,7 +90,7 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
     for (size_t m = 0; m <= max_mag; m++) {
         bucket_size = ans_uniq_vals_in_mag(m, max_val);
         freqs[m] = 0.5 + freqs[m] * C / bucket_size;
-        if (freqs[m] < 1) {
+        if (mag_freqs[m] != 0 && freqs[m] < 1) {
             freqs[m] = 1;
         }
     }
@@ -103,17 +103,17 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
         /* scale all the others, rounding up so not zero anywhere,
            and at the same time, spread right across the bucketed
            range */
-        for (m = 1; m <= maxmag; m++) {
-            freqs[mag] = 0.5 + freqs[mag] * C;
-            if (freqs[mag] < 1) {
-                freqs[mag] = 1;
+        for (uint8_t m = 1; m <= max_mag; m++) {
+            freqs[m] = 0.5 + freqs[m] * C;
+            if (mag_freqs[m] != 0 && freqs[m] < 1) {
+                freqs[m] = 1;
             }
         }
     }
 
     /* now, what does it all add up to? */
     uint64_t M = 0;
-    for (size_t m = 0; m < n; m++) {
+    for (size_t m = 0; m <= max_mag; m++) {
         M += freqs[m] * ans_uniq_vals_in_mag(m, max_val);
     }
     /* fourth phase, round up to a power of two and then redistribute */
@@ -123,7 +123,7 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
     /* flow that excess count backwards to the beginning of
        the selectors array, spreading it out across the buckets...
     */
-    for (int8_t m = int8_t(maxmag); m >= 0; m--) {
+    for (int8_t m = int8_t(max_mag); m >= 0; m--) {
         double ratio = 1.0 * excess / M;
         uint64_t adder = ratio * freqs[m];
         excess -= ans_uniq_vals_in_mag(m, max_val) * adder;
@@ -138,21 +138,17 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
     }
 
     M = 0;
-    for (size_t i = 0; i < n; i++) {
+    for (size_t i = 0; i <= max_mag; i++) {
         M += int64_t(freqs[i] * ans_uniq_vals_in_mag(i, max_val));
     }
-    if (!is_power_of_two(M)) {
-        quit("ERROR! not power of 2 after normalization = %lu", M);
-    }
 
-    for (size_t i = 0; i < n; i++) {
+    for (size_t i = 0; i <= max_mag; i++) {
         auto minv = ans_min_val_in_mag(i);
         auto maxv = ans_max_val_in_mag(i, max_val);
         auto num_uniq = ans_uniq_vals_in_mag(i, max_val);
         auto initial_freq = mag_freqs[i];
         auto initial_prob
-            = double(initial_freq * ans_uniq_vals_in_mag(i, max_val))
-            / double(initial_sum);
+            = double(initial_freq * ans_uniq_vals_in_mag(i,max_val)) / double(initial_sum);
         auto final_prob
             = double(freqs[i] * ans_uniq_vals_in_mag(i, max_val)) / double(M);
         fprintf(stderr,
@@ -162,6 +158,10 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
             final_prob);
     }
     fprintf(stderr, "TABLE\n");
+
+    if (!is_power_of_two(M)) {
+        quit("ERROR! not power of 2 after normalization = %lu", M);
+    }
 
     return freqs;
 }
@@ -219,6 +219,9 @@ std::vector<uint64_t> normalize_freqs_power_of_two_alistair(
     }
     // fprintf(stderr, "M = %lu TP = %lu E = %lu\n", M, target_power, excess);
     // print_array(nfreqs.begin(), n, "NC");
+    if(excess != 0) {
+        nfreqs[0] += excess;
+    }
 
     M = 0;
     for (size_t i = 0; i < n; i++) {

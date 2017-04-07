@@ -149,7 +149,7 @@ public:
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
             models[i].write(out8);
         }
-        fprintf(stderr, "write models done.\n");
+        // fprintf(stderr, "write models done.\n");
 
         // (4) align to u32 boundary
         size_t wb = out8 - initout8;
@@ -177,7 +177,7 @@ public:
     void encodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t& nvalue)
     {
-        fprintf(stderr, "encodeArray START\n");
+        // fprintf(stderr, "encodeArray START\n");
         static std::vector<uint8_t> model_ids;
         static std::vector<uint64_t> encoded_data;
         if (model_ids.size() < len + 1) {
@@ -199,8 +199,8 @@ public:
 
             const auto& model = models[model_id];
             encoded_data[words_written++] = model.encode_u64(in + pos, span);
-            fprintf(stderr, "model %u state %lu\n", model_id,
-                encoded_data[words_written - 1]);
+            // fprintf(stderr, "model %u state %lu\n", model_id,
+            //     encoded_data[words_written - 1]);
 
             // (3) advance
             pos += span;
@@ -233,7 +233,7 @@ public:
     uint32_t* decodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t list_len)
     {
-        fprintf(stderr, "decodeArray START\n");
+        // fprintf(stderr, "decodeArray START\n");
         // (1) decode selectors
         auto initin8 = reinterpret_cast<const uint8_t*>(in);
         auto in8 = initin8;
@@ -257,16 +257,17 @@ public:
         for (size_t i = 0; i < num_sels; i++) {
             const auto& model = models[selectors[i]];
             uint64_t state = *in64++;
-            fprintf(stderr, "model %u state %lu\n", selectors[i], state);
+            // fprintf(stderr, "model %u state %lu\n", selectors[i], state);
             size_t num_decoded = 0;
             while (state > 0) {
-                uint64_t state_mod_M = state & model.mask_M;
-                uint32_t num = model.csum2sym[state_mod_M];
+                uint64_t r = 1ULL + ((state - 1ULL) & model.mask_M);
+                uint64_t j = (state - r) >> model.log2_M;
+                uint32_t num = model.csum2sym[r - 1];
                 uint64_t f = model.normalized_freqs[num];
-                uint64_t b = model.base[num];
+                uint64_t b = model.base[num] + 1;
                 stack[num_decoded++] = num;
-                state = f * (state >> model.log2_M) + state_mod_M - b;
-                fprintf(stderr, "state %lu\n", state);
+                state = f * j + r - b;
+                // fprintf(stderr, "D state %lu\n", state);
             }
             // (2a) output order in reverse decoding order
             for (size_t j = 0; j < num_decoded; j++) {

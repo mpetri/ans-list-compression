@@ -45,7 +45,7 @@ encoding_stats compress_lists(const list_data& ld, std::string output_prefix)
                 total_u32_written += encoded_u32;
             }
 
-            for (size_t i = 0; i < 4; i++) {
+            for (size_t i = 0; i < local_data.num_lists; i++) {
                 size_t list_size = local_data.list_sizes[i];
                 const uint32_t* in = local_data.list_ptrs[i];
                 list_starts[i] = (out - initout);
@@ -114,7 +114,7 @@ std::chrono::nanoseconds decompress_and_verify(
                 comp.dec_init(in);
             }
 
-            for (size_t i = 0; i < 4; i++) {
+            for (size_t i = 0; i < recovered.num_lists; i++) {
                 auto input_ptr = in + list_starts[i];
                 size_t encoding_size_u32 = list_starts[i + 1] - list_starts[i];
                 comp.decodeArray(input_ptr, encoding_size_u32,

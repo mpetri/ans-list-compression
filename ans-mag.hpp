@@ -72,7 +72,7 @@ public:
             auto max_val = ans_max_val_in_mag(i, total_max_val);
             for (size_t j = min_val; j <= max_val; j++) {
                 normalized_freqs[j] = norm_mags[i];
-                base[j] = cumsum + 1;
+                base[j] = cumsum;
                 cumsum += normalized_freqs[j];
             }
         }
@@ -125,10 +125,11 @@ public:
             auto num = in[i];
             if (num > total_max_val || normalized_freqs[num] == 0)
                 break;
-            uint64_t f = normalized_freqs[num];
-            uint64_t b = base[num];
-
-            state = ((state / f) * M) + (state % f) + b;
+            uint128_t f = normalized_freqs[num];
+            uint128_t b = base[num] + 1;
+            uint128_t r = state % f;
+            uint128_t j = (state - r) / f;
+            state = j * M + r + b;
             if (state > max_state) {
                 break;
             }
@@ -143,8 +144,10 @@ public:
         for (size_t i = 0; i < n; i++) {
             auto num = in[i];
             uint64_t f = normalized_freqs[num];
-            uint64_t b = base[num];
-            state = ((state / f) * M) + (state % f) + b;
+            uint64_t b = base[num] + 1;
+            uint64_t r = state % f;
+            uint64_t j = (state - r) / f;
+            state = j * M + r + b;
         }
         return state;
     }

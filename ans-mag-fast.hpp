@@ -1,27 +1,37 @@
 #pragma once
 
 #include "ans-constants.hpp"
+#include "ans-mag.hpp"
 #include "ans-util.hpp"
 
-using mag_table = std::array<uint64_t, constants::MAX_MAG + 1>;
+struct mag_enc_table_entry {
+    uint32_t freq;
+    uint64_t base;
+    uint32_t SUB;
+};
 
-struct ans_mag_model {
+struct mag_dec_table_entry {
+    uint32_t freq;
+    uint64_t offset;
+    uint32_t sym;
+};
+
+struct ans_mag_model_fast {
 public:
     uint64_t M; // frame size
-    std::vector<uint32_t> normalized_freqs;
-    std::vector<uint64_t> base;
-    std::vector<uint64_t> sym_upper_bound;
+    std::vector<mag_enc_table_entry> enc_table;
     mag_table norm_mags = { { 0 } };
     uint8_t log2_M = 0;
     uint64_t mask_M = 0;
     uint64_t norm_lower_bound = 0;
-    std::vector<uint32_t> csum2sym;
+    std::vector<mag_dec_table_entry> dec_table;
     uint64_t total_max_val = 0;
 
 public:
-    ans_mag_model(const uint8_t*& in8)
+    ans_mag_model_fast(const uint8_t*& in8)
     {
         total_max_val = ans_vbyte_decode_u64(in8);
+        fprintf(stderr, "read model maxval = %lu\n", total_max_val);
 
         // (1) read the normalized magnitudes
         bool all_zero = true;
@@ -38,8 +48,8 @@ public:
         // (2) init the model
         init_model();
     }
-    ans_mag_model(ans_mag_model&&) = default;
-    ans_mag_model(const mag_table& mags, uint32_t maxv)
+    ans_mag_model_fast(ans_mag_model_fast&&) = default;
+    ans_mag_model_fast(const mag_table& mags, uint32_t maxv)
         : total_max_val(maxv)
     {
         // (0) if all is 0 do nothing
@@ -59,9 +69,7 @@ public:
     void init_model()
     {
         // (1) allocate space
-        normalized_freqs.resize(total_max_val + 1);
-        base.resize(total_max_val + 1);
-        sym_upper_bound.resize(total_max_val + 1);
+        enc_table.resize(total_max_val + 1);
 
         // (2) fill the tables
         uint64_t cumsum = 0;
@@ -71,40 +79,44 @@ public:
             auto min_val = ans_min_val_in_mag(i);
             auto max_val = ans_max_val_in_mag(i, total_max_val);
             for (size_t j = min_val; j <= max_val; j++) {
-                normalized_freqs[j] = norm_mags[i];
-                base[j] = cumsum;
-                cumsum += normalized_freqs[j];
+                enc_table[j].freq = norm_mags[i];
+                enc_table[j].base = cumsum;
+                cumsum += enc_table[j].freq;
             }
         }
         M = cumsum;
         norm_lower_bound = constants::OUTPUT_BASE * M;
-        for (size_t j = 0; j < normalized_freqs.size(); j++) {
-            sym_upper_bound[j]
-                = ((norm_lower_bound / M) * constants::OUTPUT_BASE)
-                * normalized_freqs[j];
+        for (size_t j = 1; j < enc_table.size(); j++) {
+            enc_table[j].SUB = ((norm_lower_bound / M) * constants::OUTPUT_BASE)
+                * enc_table[j].freq;
         }
         mask_M = M - 1;
         log2_M = log2(M);
+
         // create csum table for decoding
-        csum2sym.resize(M);
-        cumsum = 0;
-        for (size_t j = 0; j < normalized_freqs.size(); j++) {
-            auto cur_freq = normalized_freqs[j];
-            for (size_t i = 0; i < cur_freq; i++)
-                csum2sym[cumsum + i] = j;
-            cumsum += cur_freq;
+        dec_table.resize(M);
+        size_t base = 0;
+        for (size_t j = 1; j < enc_table.size(); j++) {
+            auto cur_freq = enc_table[j].freq;
+            for (size_t k = 0; k < cur_freq; k++) {
+                dec_table[base + k].sym = j;
+                dec_table[base + k].freq = cur_freq;
+                dec_table[base + k].offset = k;
+            }
+            base += cur_freq;
         }
+        fprintf(stderr, "M = %lu\n", M);
         if (cumsum != M) {
             fprintf(stderr, "cumsum %lu != M %lu\n", cumsum, M);
         }
     }
     uint64_t encode(uint64_t state, uint32_t num, uint8_t*& out8) const
     {
-        uint64_t f = normalized_freqs[num];
-        uint64_t b = base[num];
+        const auto& entry = enc_table[num];
+        uint64_t f = entry.freq;
+        uint64_t b = entry.base;
         // (1) normalize
-        uint64_t SUB = sym_upper_bound[num];
-        while (state >= SUB) {
+        while (state >= entry.SUB) {
             --out8;
             *out8 = (uint8_t)(state & 0xFF);
             state = state >> constants::OUTPUT_BASE_LOG2;
@@ -123,13 +135,14 @@ public:
         const uint128_t max_state = std::numeric_limits<uint64_t>::max();
         for (size_t i = 0; i < n; i++) {
             auto num = in[i];
-            if (num > total_max_val || normalized_freqs[num] == 0)
+            const auto& entry = enc_table[num];
+            if (num > total_max_val || entry.freq == 0)
                 break;
-            uint128_t f = normalized_freqs[num];
-            uint128_t b = base[num] + 1;
+            uint128_t f = entry.freq;
+            uint128_t b = entry.base + 1;
             uint128_t r = state % f;
             uint128_t j = (state - r) / f;
-            state = j * M + r + b;
+            state = j * uint128_t(M) + r + b;
             if (state > max_state) {
                 break;
             }
@@ -143,8 +156,9 @@ public:
         uint64_t state = 0;
         for (size_t i = 0; i < n; i++) {
             auto num = in[i];
-            uint64_t f = normalized_freqs[num];
-            uint64_t b = base[num] + 1;
+            const auto& entry = enc_table[num];
+            uint64_t f = entry.freq;
+            uint64_t b = entry.base + 1;
             uint64_t r = state % f;
             uint64_t j = (state - r) / f;
             state = j * M + r + b;
@@ -159,13 +173,12 @@ public:
         while (state > 0) {
             uint64_t r = 1ULL + ((state - 1ULL) & mask_M);
             uint64_t j = (state - r) >> log2_M;
-            uint32_t num = csum2sym[r - 1];
-            uint64_t f = normalized_freqs[num];
-            uint64_t b = base[num] + 1;
-            stack[num_decoded++] = num;
-            state = f * j + r - b;
+            const auto& entry = dec_table[r - 1];
+            uint64_t f = entry.freq;
+            uint64_t b = entry.offset;
+            stack[num_decoded++] = entry.sym;
+            state = f * j + b;
         }
-        // (2a) output order in reverse decoding order
         for (size_t j = 0; j < num_decoded; j++) {
             *out++ = stack[num_decoded - j - 1];
         }
@@ -175,10 +188,10 @@ public:
         uint64_t& state, const uint8_t*& in8, size_t& enc_size) const
     {
         uint64_t state_mod_M = state & mask_M;
-        uint32_t sym = csum2sym[state_mod_M];
-        uint64_t f = normalized_freqs[sym];
-        uint64_t b = base[sym];
-        state = f * (state >> log2_M) + state_mod_M - b;
+        const auto& entry = dec_table[state_mod_M];
+        uint32_t sym = entry.sym;
+        uint64_t f = entry.freq;
+        state = f * (state >> log2_M) + entry.offset;
         while (enc_size && state < norm_lower_bound) {
             uint8_t new_byte = *in8++;
             state = (state << constants::OUTPUT_BASE_LOG2) | uint64_t(new_byte);

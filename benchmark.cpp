@@ -182,16 +182,16 @@ int main(int argc, char const* argv[])
     fprintff(stderr,
         "method;postings;lists;size_bits;encoding_time_ns;decoding_time_ns\n");
 
-    // run<ans_vbyte_split<4096> >(inputs, output_prefix);
-    // run<ans_vbyte_single<4096> >(inputs, output_prefix);
     run<ans_simple>(inputs, output_prefix);
-    // run<ans_packed<128> >(inputs, output_prefix);
-    // run<ans_packed<256> >(inputs, output_prefix);
-    // run<qmx>(inputs, output_prefix);
-    // run<vbyte>(inputs, output_prefix);
-    // run<op4<128> >(inputs, output_prefix);
-    // run<simple16>(inputs, output_prefix);
-    // run<interpolative>(inputs, output_prefix);
+    run<ans_packed<128> >(inputs, output_prefix);
+    run<ans_packed<256> >(inputs, output_prefix);
+    run<ans_vbyte_split<4096> >(inputs, output_prefix);
+    run<ans_vbyte_single<4096> >(inputs, output_prefix);
+    run<qmx>(inputs, output_prefix);
+    run<vbyte>(inputs, output_prefix);
+    run<op4<128> >(inputs, output_prefix);
+    run<simple16>(inputs, output_prefix);
+    run<interpolative>(inputs, output_prefix);
 
     return EXIT_SUCCESS;
 }

@@ -3,7 +3,7 @@
 #include <array>
 #include <memory>
 
-#include "ans-mag.hpp"
+#include "ans-mag-fast.hpp"
 #include "ans-util.hpp"
 #include "util.hpp"
 
@@ -12,9 +12,11 @@ const uint64_t WINDOW = 65; /* should be odd */
 const uint64_t PAYLOADBITS = 64;
 }
 
+using ans_model_type = ans_mag_model_fast;
+
 struct ans_simple {
 private:
-    std::vector<ans_mag_model> models;
+    std::vector<ans_model_type> models;
     std::pair<uint8_t, uint64_t> pick_model(const uint32_t* in, size_t n)
     {
         uint8_t best_model = 0;
@@ -139,7 +141,7 @@ public:
                         L[i][j] = 1;
                 }
             }
-            models.emplace_back(ans_mag_model(L[i], maxv));
+            models.emplace_back(ans_model_type(L[i], maxv));
         }
         fprintf(stderr, "create models done.\n");
 
@@ -164,7 +166,7 @@ public:
         auto initin8 = reinterpret_cast<const uint8_t*>(in);
         auto in8 = initin8;
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            models.emplace_back(ans_mag_model(in8));
+            models.emplace_back(ans_model_type(in8));
         }
         size_t pbytes = in8 - initin8;
         if (pbytes % sizeof(uint32_t) != 0) {
@@ -249,32 +251,12 @@ public:
         }
 
         // (2) decode content
-        static std::vector<uint32_t> stack;
-        if (stack.size() < list_len) {
-            stack.resize(list_len);
-        }
         auto in64 = reinterpret_cast<const uint64_t*>(in8);
         for (size_t i = 0; i < num_sels; i++) {
             const auto& model = models[selectors[i]];
             uint64_t state = *in64++;
-            // fprintf(stderr, "model %u state %lu\n", selectors[i], state);
-            size_t num_decoded = 0;
-            while (state > 0) {
-                uint64_t r = 1ULL + ((state - 1ULL) & model.mask_M);
-                uint64_t j = (state - r) >> model.log2_M;
-                uint32_t num = model.csum2sym[r - 1];
-                uint64_t f = model.normalized_freqs[num];
-                uint64_t b = model.base[num] + 1;
-                stack[num_decoded++] = num;
-                state = f * j + r - b;
-                // fprintf(stderr, "D state %lu\n", state);
-            }
-            // (2a) output order in reverse decoding order
-            for (size_t j = 0; j < num_decoded; j++) {
-                *out++ = stack[num_decoded - j - 1];
-            }
+            model.decode_u64(state, out);
         }
-
         return out;
     }
 };

@@ -133,7 +133,7 @@ public:
         uint64_t state_mod_M = state & mask_M;
         const auto& entry = dec_table[state_mod_M];
         // update state and renormalize
-        state = entry.freq * (state / M) + entry.offset;
+        state = entry.freq * (state >> log2_M) + entry.offset;
         while (enc_size && state < norm_lower_bound) {
             uint8_t new_byte = *in8++;
             state = (state << constants::OUTPUT_BASE_LOG2) | uint32_t(new_byte);

@@ -31,7 +31,6 @@ public:
     ans_mag_model_fast(const uint8_t*& in8)
     {
         total_max_val = ans_vbyte_decode_u64(in8);
-        fprintf(stderr, "read model maxval = %lu\n", total_max_val);
 
         // (1) read the normalized magnitudes
         bool all_zero = true;
@@ -48,7 +47,6 @@ public:
         // (2) init the model
         init_model();
     }
-    ans_mag_model_fast(ans_mag_model_fast&&) = default;
     ans_mag_model_fast(const mag_table& mags, uint32_t maxv)
         : total_max_val(maxv)
     {
@@ -127,28 +125,35 @@ public:
         return next;
     }
 
-    uint64_t try_encode_u64(const uint32_t* in, size_t n) const
+    std::pair<uint64_t, uint64_t> try_encode_u64(
+        const uint32_t* in, size_t n) const
     {
-        typedef unsigned int uint128_t __attribute__((mode(TI)));
-        uint128_t state = 0;
+        uint64_t state = 0;
         uint64_t num_encoded = 0;
-        const uint128_t max_state = std::numeric_limits<uint64_t>::max();
         for (size_t i = 0; i < n; i++) {
             auto num = in[i];
-            const auto& entry = enc_table[num];
-            if (num > total_max_val || entry.freq == 0)
+            if (num > total_max_val)
                 break;
-            uint128_t f = entry.freq;
-            uint128_t b = entry.base + 1;
-            uint128_t r = state % f;
-            uint128_t j = (state - r) / f;
-            state = j * uint128_t(M) + r + b;
-            if (state > max_state) {
+            const auto& entry = enc_table[num];
+            if (entry.freq == 0)
+                break;
+            uint64_t f = entry.freq;
+            uint64_t b = entry.base + 1;
+            uint64_t r = state % f;
+            uint64_t j = (state - r) / f;
+            uint64_t new_state = 0;
+            if (__builtin_umull_overflow(j, M, &new_state)) {
                 break;
             }
+            uint64_t tmp = r + b;
+            uint64_t new_state_2 = 0;
+            if (__builtin_uaddl_overflow(new_state, tmp, &new_state_2)) {
+                break;
+            }
+            state = new_state_2;
             num_encoded++;
         }
-        return num_encoded;
+        return { num_encoded, state };
     }
 
     uint64_t encode_u64(const uint32_t* in, size_t n) const

@@ -115,12 +115,14 @@ public:
         return next;
     }
 
-    uint64_t try_encode_u64(const uint32_t* in, size_t n) const
+    std::pair<uint64_t, uint64_t> try_encode_u64(
+        const uint32_t* in, size_t n) const
     {
         typedef unsigned int uint128_t __attribute__((mode(TI)));
         uint128_t state = 0;
         uint64_t num_encoded = 0;
         const uint128_t max_state = std::numeric_limits<uint64_t>::max();
+        uint64_t prev = 0;
         for (size_t i = 0; i < n; i++) {
             auto num = in[i];
             if (num > total_max_val || normalized_freqs[num] == 0)
@@ -133,9 +135,10 @@ public:
             if (state > max_state) {
                 break;
             }
+            prev = state;
             num_encoded++;
         }
-        return num_encoded;
+        return { num_encoded, prev };
     }
 
     uint64_t encode_u64(const uint32_t* in, size_t n) const

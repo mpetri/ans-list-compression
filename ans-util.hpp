@@ -160,18 +160,14 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
         auto maxv = ans_max_val_in_mag(i, max_val);
         auto num_uniq = ans_uniq_vals_in_mag(i, max_val);
         auto initial_freq = mag_freqs[i];
-        auto initial_prob
-            = double(initial_freq * ans_uniq_vals_in_mag(i, max_val))
-            / double(initial_sum);
+        auto initial_prob = double(initial_freq) / double(initial_sum);
         auto final_prob
             = double(freqs[i] * ans_uniq_vals_in_mag(i, max_val)) / double(M);
-        fprintf(stderr,
-            "TABLE mag=%lu\tbucket=%lu\tmin=%lu\tmax=%lu\tif=%lu\tnf=%lu\tip=%"
-            "lf\tnp=%lf\n",
+        fprintf(stderr, "mag=%-2lu\tbucket=%-10u\tmin=%-10u\tmax=%-10u\tif=%"
+                        "-10lu\tnf=%-10lu\tip=%lf\tnp=%lf\n",
             i, num_uniq, minv, maxv, initial_freq, freqs[i], initial_prob,
             final_prob);
     }
-    fprintf(stderr, "TABLE\n");
 
     if (!is_power_of_two(M)) {
         quit("ERROR! not power of 2 after normalization = %lu", M);
@@ -246,17 +242,15 @@ std::vector<uint64_t> normalize_freqs_power_of_two_alistair(
     }
 
     for (size_t i = 0; i < n; i++) {
-        auto num_uniq = 1;
+        auto num_uniq = 1UL;
         auto initial_freq = freqs[i];
         auto initial_prob = double(initial_freq) / double(initial_sum);
         auto final_prob = double(nfreqs[i]) / double(M);
-        fprintf(stderr,
-            "TABLE sym=%lu\tbucket=%lu\tmin=%lu\tmax=%lu\tif=%lu\tnf=%lu\tip=%"
-            "lf\tnp=%lf\n",
-            i, num_uniq, i, i, initial_freq, freqs[i], initial_prob,
+        fprintf(stderr, "sym=%lu\tbucket=%lu\tmin=%lu\tmax=%lu\tif=%lu\tnf=%"
+                        "lu\tip=%lf\tnp=%lf\n",
+            i, num_uniq, i, i, initial_freq, nfreqs[i], initial_prob,
             final_prob);
     }
-    fprintf(stderr, "TABLE\n");
 
     return nfreqs;
 }

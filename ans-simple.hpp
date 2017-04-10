@@ -14,21 +14,32 @@ const uint64_t PAYLOADBITS = 64;
 
 using ans_model_type = ans_mag_model_fast;
 
+struct enc_res {
+    uint8_t model_id;
+    uint64_t span;
+    uint64_t word;
+};
+
 struct ans_simple {
 private:
     std::vector<ans_model_type> models;
-    std::pair<uint8_t, uint64_t> pick_model(const uint32_t* in, size_t n)
+
+private:
+    enc_res pick_model(const uint32_t* in, size_t n)
     {
         uint8_t best_model = 0;
         uint64_t best_span = 0;
+        uint64_t best_word = 0;
         for (size_t i = 0; i < models.size(); i++) {
-            auto span = models[i].try_encode_u64(in, n);
-            if (span > best_span) {
+            const auto& m = models[i];
+            auto span_and_word = m.try_encode_u64(in, n);
+            if (span_and_word.first > best_span) {
                 best_model = i;
-                best_span = span;
+                best_span = span_and_word.first;
+                best_word = span_and_word.second;
             }
         }
-        return { best_model, best_span };
+        return enc_res{ best_model, best_span, best_word };
     }
 
 public:
@@ -38,8 +49,7 @@ public:
     void init(const list_data& input, uint32_t* out, size_t& nvalue)
     {
         // (1) count frequencies for each model
-        std::array<uint32_t, constants::WINDOW> W = { 1 };
-        std::array<uint8_t, constants::WINDOW> M = { 0 };
+        std::vector<uint8_t> M(4096 * constants::WINDOW, 0);
         std::vector<mag_table> L(constants::NUM_MAGS);
         for (auto& mt : L)
             mt.fill(0);
@@ -56,27 +66,27 @@ public:
                 if (next > max_val) {
                     max_val = next;
                 }
-                W[pos] = next;
                 M[pos] = ans_magnitude(next);
             }
 
             /* get a new "final" element in to the window */
+            size_t off = 0;
             while (pos < n) {
                 /* get a new "final" element in to the window */
                 auto next = cur_list[pos];
-                W[constants::WINDOW - 1] = next;
-                M[constants::WINDOW - 1] = ans_magnitude(next);
+                M[off + constants::WINDOW - 1] = ans_magnitude(next);
                 if (next > max_val) {
                     max_val = next;
                 }
                 auto mid = constants::WINDOW / 2;
-                auto mag = M[mid];
-                uint8_t ocen = M[mid], olft = M[mid], orgt = M[mid];
+                auto mag = M[off + mid];
+                uint8_t ocen = M[off + mid], olft = M[off + mid],
+                        orgt = M[off + mid];
                 /* try to the left first */
                 for (uint64_t stp = 1; stp <= constants::WINDOW / 2; stp++) {
                     uint8_t nlft = olft;
-                    if (nlft < M[mid - stp]) {
-                        nlft = M[mid - stp];
+                    if (nlft < M[off + mid - stp]) {
+                        nlft = M[off + mid - stp];
                     }
                     if (nlft * (stp + 1) > constants::PAYLOADBITS) {
                         /* time to stop */
@@ -87,8 +97,8 @@ public:
                 /* try to the right next */
                 for (uint64_t stp = 1; stp <= constants::WINDOW / 2; stp++) {
                     uint8_t nrgt = orgt;
-                    if (nrgt < M[mid + stp]) {
-                        nrgt = M[mid + stp];
+                    if (nrgt < M[off + mid + stp]) {
+                        nrgt = M[off + mid + stp];
                     }
                     if (nrgt * (stp + 1) > constants::PAYLOADBITS) {
                         /* time to stop */
@@ -99,11 +109,11 @@ public:
                 /* and then symmetric about the middle */
                 for (uint64_t stp = 1; stp <= constants::WINDOW / 2; stp++) {
                     uint8_t ncen = ocen;
-                    if (ncen < M[mid - stp]) {
-                        ncen = M[mid - stp];
+                    if (ncen < M[off + mid - stp]) {
+                        ncen = M[off + mid - stp];
                     }
-                    if (ncen < M[mid + stp]) {
-                        ncen = M[mid + stp];
+                    if (ncen < M[off + mid + stp]) {
+                        ncen = M[off + mid + stp];
                     }
                     if (ncen * (2 * stp + 1) >= constants::PAYLOADBITS) {
                         /* end of the line */
@@ -116,10 +126,15 @@ public:
 
                 auto big = constants::MAG2SEL[med];
                 L[big][mag]++;
+
                 /* and then copy down and move pos ahead*/
-                for (uint64_t i = 1; i < constants::WINDOW; i++) {
-                    W[i - 1] = W[i];
-                    M[i - 1] = M[i];
+                if ((off + constants::WINDOW + 1) >= M.size()) {
+                    for (uint64_t i = 1; i < constants::WINDOW; i++) {
+                        M[i - 1] = M[off + i];
+                    }
+                    off = 0;
+                } else {
+                    off++;
                 }
                 pos++;
             }
@@ -141,7 +156,8 @@ public:
                         L[i][j] = 1;
                 }
             }
-            models.emplace_back(ans_model_type(L[i], maxv));
+            fprintf(stderr, "create model %lu\n", models.size());
+            models.emplace_back(L[i], maxv);
         }
         fprintf(stderr, "create models done.\n");
 
@@ -182,7 +198,7 @@ public:
         // fprintf(stderr, "encodeArray START\n");
         static std::vector<uint8_t> model_ids;
         static std::vector<uint64_t> encoded_data;
-        if (model_ids.size() < len + 1) {
+        if (model_ids.size() < (len + 1)) {
             model_ids.resize(len + 1);
             encoded_data.resize(len + 1);
         }
@@ -191,21 +207,10 @@ public:
         size_t pos = 0;
         while (pos < len) {
             size_t remaining = len - pos;
-            // (1) find longest span (greedy)
-            auto id_and_span = pick_model(in + pos, remaining);
-
-            // (2) encode using the best model
-            auto model_id = id_and_span.first;
-            model_ids[words_written] = model_id;
-            auto span = id_and_span.second;
-
-            const auto& model = models[model_id];
-            encoded_data[words_written++] = model.encode_u64(in + pos, span);
-            // fprintf(stderr, "model %u state %lu\n", model_id,
-            //     encoded_data[words_written - 1]);
-
-            // (3) advance
-            pos += span;
+            auto enc_res = pick_model(in + pos, remaining);
+            model_ids[words_written] = enc_res.model_id;
+            encoded_data[words_written++] = enc_res.word;
+            pos += enc_res.span;
         }
 
         // (3) write to output

@@ -7,7 +7,6 @@
 #include <memory>
 #include <type_traits>
 
-
 using namespace std::chrono;
 
 inline void* align1(
@@ -110,6 +109,12 @@ struct list_data {
     }
 };
 
+struct ds2i_data {
+    uint32_t num_docs;
+    list_data docids;
+    list_data freqs;
+};
+
 struct timer {
     high_resolution_clock::time_point start;
     std::string name;
@@ -152,76 +157,6 @@ void quit(const char* format, ...)
     }
     fflush(stderr);
     exit(EXIT_FAILURE);
-}
-
-inline uint32_t read_uint32_line()
-{
-    const uint64_t BUFFER_SIZE = 1024 * 512u;
-    static uint8_t buf[BUFFER_SIZE];
-    static size_t pos = 0;
-    static size_t left = 0;
-    uint32_t x = 0;
-refill_buf:
-    if (pos == left) {
-        left = fread(buf, 1, BUFFER_SIZE, stdin);
-        pos = 0;
-        if (left == 0) {
-            quit("error reading number from line.");
-        }
-    }
-    while (pos != left) {
-        uint8_t digit = buf[pos++];
-        if (digit == '\n') {
-            return x;
-        }
-        if (digit < '0' || digit > '9') {
-            quit("error reading number from line.");
-        }
-        x = (x * 10) + (digit - '0');
-    }
-    goto refill_buf;
-}
-
-std::vector<uint32_t> read_uint32_list()
-{
-    uint32_t list_len = read_uint32_line();
-    std::vector<uint32_t> list(list_len);
-    for (uint32_t j = 0; j < list_len; j++) {
-        list[j] = read_uint32_line();
-        if (list[j] == 0) {
-            fprintff(
-                stderr, "error: input list contains 0. replacing with 1.\n");
-            list[j] = 1;
-        }
-    }
-    return list;
-}
-
-list_data read_all_input_from_stdin(uint32_t max = 0, uint32_t skip = 0)
-{
-    timer t("read input lists from stdin");
-    uint32_t num_lists = read_uint32_line();
-    if (max != 0) {
-        num_lists = max - skip;
-    } else {
-        max = num_lists;
-    }
-    list_data ld(num_lists);
-    for (uint32_t i = 0; i < max; i++) {
-        const auto& list = read_uint32_list();
-        if (i >= skip) {
-            size_t llen = list.size();
-            ld.list_sizes[i - skip] = list.size();
-            ld.list_ptrs[i - skip]
-                = (uint32_t*)aligned_alloc(16, llen * sizeof(uint32_t));
-            for (size_t j = 0; j < llen; j++)
-                ld.list_ptrs[i - skip][j] = list[j];
-            ld.num_postings += llen;
-        }
-    }
-    fprintf(stderr, "num_lists = %lu\n", ld.num_lists);
-    fprintf(stderr, "num_postings = %lu\n", ld.num_postings);
-    return ld;
 }
 
 void output_list_to_stdout(uint32_t* list, uint32_t n)
@@ -308,10 +243,21 @@ uint32_t read_u32(FILE* f)
 {
     uint32_t x;
     int ret = fread(&x, sizeof(uint32_t), 1, f);
+    if (feof(f)) {
+        return 0;
+    }
     if (ret != 1) {
-        quit("read byte from file failed: %d != %d", ret, 1);
+        quit("read u32 from file failed: %d != %d", ret, 1);
     }
     return x;
+}
+
+void read_u32s(FILE* f, void* ptr, size_t n)
+{
+    size_t ret = fread(ptr, sizeof(uint32_t), n, f);
+    if (ret != n) {
+        quit("read u32s from file failed: %d != %d", ret, n);
+    }
 }
 
 size_t write_u32(FILE* f, uint32_t x)
@@ -377,4 +323,72 @@ inline const uint32_t* align_ptr(size_t __align, size_t __size,
         __space -= __diff;
         return __ptr = reinterpret_cast<const uint32_t*>(__aligned);
     }
+}
+
+std::vector<uint32_t> read_uint32_list(FILE* f)
+{
+    uint32_t list_len = read_u32(f);
+    if (list_len == 0)
+        return std::vector<uint32_t>();
+    std::vector<uint32_t> list(list_len);
+    read_u32s(f, list.data(), list_len);
+    for (uint32_t j = 0; j < list_len; j++) {
+        list[j]++; // ensure there are no 0s
+    }
+    return list;
+}
+
+ds2i_data read_all_input_ds2i(std::string ds2i_prefix)
+{
+    ds2i_data ds2i;
+    timer t("read input lists from " + ds2i_prefix);
+
+    std::string docs_file = ds2i_prefix + ".docs";
+    auto df = fopen_or_fail(docs_file, "rb");
+    {
+        // (1) skip the numdocs list
+        read_u32(df);
+        read_u32(df);
+        // (2) keep reading lists
+        uint32_t max_doc_id = 0;
+        while (!feof(df)) {
+            const auto& list = read_uint32_list(df);
+            size_t n = list.size();
+            if (n == 0)
+                break;
+            max_doc_id = std::max(max_doc_id, list.back());
+            ds2i.docids.list_sizes.push_back(n);
+            uint32_t* ptr = (uint32_t*)aligned_alloc(16, n * sizeof(uint32_t));
+            ds2i.docids.list_ptrs.push_back(ptr);
+            auto in_ptr = list.data();
+            memcpy(ptr, in_ptr, n);
+            ds2i.docids.num_lists++;
+            ds2i.docids.num_postings += n;
+        }
+        ds2i.num_docs = max_doc_id - 1;
+    }
+
+    std::string freqs_file = ds2i_prefix + ".freqs";
+    auto ff = fopen_or_fail(freqs_file, "rb");
+    {
+        while (!feof(ff)) {
+            const auto& list = read_uint32_list(ff);
+            size_t n = list.size();
+            if (n == 0)
+                break;
+            ds2i.freqs.list_sizes.push_back(n);
+            uint32_t* ptr = (uint32_t*)aligned_alloc(16, n * sizeof(uint32_t));
+            ds2i.freqs.list_ptrs.push_back(ptr);
+            auto in_ptr = list.data();
+            memcpy(ptr, in_ptr, n);
+            ds2i.freqs.num_lists++;
+            ds2i.freqs.num_postings += n;
+        }
+    }
+
+    fprintf(stderr, "num_docs = %u\n", ds2i.num_docs);
+    fprintf(stderr, "num_lists = %lu\n", ds2i.freqs.num_lists);
+    fprintf(stderr, "num_postings = %lu\n", ds2i.freqs.num_postings);
+
+    return ds2i;
 }

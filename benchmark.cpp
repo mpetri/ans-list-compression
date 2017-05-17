@@ -8,10 +8,12 @@
 using encoding_stats = std::pair<std::chrono::nanoseconds, uint64_t>;
 
 template <class t_compressor>
-encoding_stats compress_lists(const list_data& ld, std::string output_prefix)
+encoding_stats compress_lists(const list_data& ld, std::string out_prefix,
+    std::string col_name, std::string part)
 {
     t_compressor comp;
-    std::string output_method_prefix = output_prefix + "." + comp.name();
+    std::string output_method_prefix
+        = out_prefix + "-" + col_name + "-" + part + "." + comp.name();
     std::string output_data_filename = output_method_prefix + ".bin";
     std::string metadata_filename = output_method_prefix + ".metadata";
     std::cerr << "output_filename = " << output_data_filename << std::endl;
@@ -79,11 +81,12 @@ encoding_stats compress_lists(const list_data& ld, std::string output_prefix)
 }
 
 template <class t_compressor>
-std::chrono::nanoseconds decompress_and_verify(
-    const list_data& original, std::string prefix)
+std::chrono::nanoseconds decompress_and_verify(const list_data& original,
+    std::string prefix, std::string col_name, std::string part)
 {
     t_compressor comp;
-    std::string input_method_prefix = prefix + "." + comp.name();
+    std::string input_method_prefix
+        = prefix + "-" + col_name + "-" + part + "." + comp.name();
     std::string input_data_filename = input_method_prefix + ".bin";
     std::string metadata_filename = input_method_prefix + ".metadata";
     std::cerr << "input_filename = " << input_data_filename << std::endl;
@@ -148,50 +151,61 @@ std::chrono::nanoseconds decompress_and_verify(
 }
 
 template <class t_compressor>
-void run(const list_data& inputs, std::string output_prefix)
+void run(const list_data& inputs, std::string out_prefix, std::string col_name,
+    std::string part)
 {
-    auto estats = compress_lists<t_compressor>(inputs, output_prefix);
-    auto dtime_ns = decompress_and_verify<t_compressor>(inputs, output_prefix);
+    auto estats
+        = compress_lists<t_compressor>(inputs, out_prefix, col_name, part);
+    auto dtime_ns = decompress_and_verify<t_compressor>(
+        inputs, out_prefix, col_name, part);
 
     {
         t_compressor c;
-        fprintff(stderr, "%s;%lu;%lu;%lu;%lu;%lu\n", c.name().c_str(),
-            inputs.num_postings, inputs.num_lists, estats.second,
-            estats.first.count(), dtime_ns.count());
+        fprintff(stderr, "%s;%s;%s;%lu;%lu;%lu;%lu;%lu\n", col_name.c_str(),
+            part.c_str(), c.name().c_str(), inputs.num_postings,
+            inputs.num_lists, estats.second, estats.first.count(),
+            dtime_ns.count());
     }
 }
 
 int main(int argc, char const* argv[])
 {
-    if (argc < 2) {
-        fprintff(stderr, "%s <output_path> < input_file\n", argv[0]);
+    if (argc < 3) {
+        fprintff(
+            stderr, "%s <colname> <input_prefix> <output_path>\n", argv[0]);
         return EXIT_FAILURE;
     }
-    std::string output_prefix = argv[1];
-    uint32_t max_lists = 0;
-    if (argc >= 3) {
-        max_lists = std::atoi(argv[2]);
-    }
-    uint32_t skip = 0;
-    if (argc >= 4) {
-        skip = std::atoi(argv[3]);
-    }
 
-    auto inputs = read_all_input_from_stdin(max_lists, skip);
+    std::string col_name = argv[1];
+    std::string input_prefix = argv[2];
+    std::string out_prefix = argv[3];
+
+    auto inputs = read_all_input_ds2i(input_prefix);
 
     fprintff(stderr,
-        "method;postings;lists;size_bits;encoding_time_ns;decoding_time_ns\n");
+        "col;part;method;postings;lists;size_bits;encoding_time_ns;"
+        "decoding_time_ns\n");
 
-    run<ans_simple>(inputs, output_prefix);
-    run<ans_packed<128> >(inputs, output_prefix);
-    run<ans_packed<256> >(inputs, output_prefix);
-    run<ans_vbyte_split<4096> >(inputs, output_prefix);
-    run<ans_vbyte_single<4096> >(inputs, output_prefix);
-    run<qmx>(inputs, output_prefix);
-    run<vbyte>(inputs, output_prefix);
-    run<op4<128> >(inputs, output_prefix);
-    run<simple16>(inputs, output_prefix);
-    run<interpolative>(inputs, output_prefix);
+    run<ans_simple>(inputs.docids, out_prefix, col_name, "docids");
+    run<ans_simple>(inputs.freqs, out_prefix, col_name, "freqs");
+    run<ans_packed<128> >(inputs.docids, out_prefix, col_name, "docids");
+    run<ans_packed<128> >(inputs.freqs, out_prefix, col_name, "freqs");
+    run<ans_packed<256> >(inputs.docids, out_prefix, col_name, "docids");
+    run<ans_packed<256> >(inputs.freqs, out_prefix, col_name, "freqs");
+    run<ans_vbyte_split<4096> >(inputs.docids, out_prefix, col_name, "docids");
+    run<ans_vbyte_split<4096> >(inputs.freqs, out_prefix, col_name, "freqs");
+    run<ans_vbyte_single<4096> >(inputs.docids, out_prefix, col_name, "docids");
+    run<ans_vbyte_single<4096> >(inputs.freqs, out_prefix, col_name, "freqs");
+    run<qmx>(inputs.docids, out_prefix, col_name, "docids");
+    run<qmx>(inputs.freqs, out_prefix, col_name, "freqs");
+    run<vbyte>(inputs.docids, out_prefix, col_name, "docids");
+    run<vbyte>(inputs.freqs, out_prefix, col_name, "freqs");
+    run<op4<128> >(inputs.docids, out_prefix, col_name, "docids");
+    run<op4<128> >(inputs.freqs, out_prefix, col_name, "freqs");
+    run<simple16>(inputs.docids, out_prefix, col_name, "docids");
+    run<simple16>(inputs.freqs, out_prefix, col_name, "freqs");
+    run<interpolative>(inputs.docids, out_prefix, col_name, "docids");
+    run<interpolative>(inputs.freqs, out_prefix, col_name, "freqs");
 
     return EXIT_SUCCESS;
 }

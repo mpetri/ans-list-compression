@@ -165,6 +165,10 @@ void run(const list_data& inputs, std::string out_prefix, std::string col_name,
             part.c_str(), c.name().c_str(), inputs.num_postings,
             inputs.num_lists, estats.second, estats.first.count(),
             dtime_ns.count());
+
+        double BPI = double(estats.second) / double(inputs.num_postings);
+        std::cerr << col_name << " - " << part << " - " << c.name() << " - "
+                  << BPI << std::endl;
     }
 }
 

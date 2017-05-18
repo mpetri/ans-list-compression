@@ -336,26 +336,3 @@ TEST_CASE("next_power_of_two", "[ans-util]")
     REQUIRE(next_power_of_two(15) == 16);
     REQUIRE(next_power_of_two(19) == 32);
 }
-
-TEST_CASE("normalize_power_of_two", "[ans-util]")
-{
-    SECTION("random stuff")
-    {
-        std::vector<uint32_t> A{ 42, 23, 10, 3, 1 };
-        auto B = normalize_power_of_two(A);
-        uint64_t cur_cnt = 0;
-        for (size_t i = 0; i < B.size(); i++) {
-            cur_cnt += B[i] * ans_uniq_vals_in_mag(i);
-        }
-        REQUIRE(is_power_of_two(cur_cnt));
-    }
-    {
-        std::vector<uint32_t> A{ 5121, 23, 10, 3, 1 };
-        auto B = normalize_power_of_two(A);
-        uint64_t cur_cnt = 0;
-        for (size_t i = 0; i < B.size(); i++) {
-            cur_cnt += B[i] * ans_uniq_vals_in_mag(i);
-        }
-        REQUIRE(is_power_of_two(cur_cnt));
-    }
-}

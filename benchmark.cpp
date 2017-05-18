@@ -13,7 +13,7 @@ encoding_stats compress_lists(const list_data& ld, std::string out_prefix,
 {
     t_compressor comp;
     std::string output_method_prefix
-        = out_prefix + "-" + col_name + "-" + part + "." + comp.name();
+        = out_prefix + "/" + col_name + "-" + part + "." + comp.name();
     std::string output_data_filename = output_method_prefix + ".bin";
     std::string metadata_filename = output_method_prefix + ".metadata";
     std::cerr << "output_filename = " << output_data_filename << std::endl;
@@ -86,7 +86,7 @@ std::chrono::nanoseconds decompress_and_verify(const list_data& original,
 {
     t_compressor comp;
     std::string input_method_prefix
-        = prefix + "-" + col_name + "-" + part + "." + comp.name();
+        = prefix + "/" + col_name + "-" + part + "." + comp.name();
     std::string input_data_filename = input_method_prefix + ".bin";
     std::string metadata_filename = input_method_prefix + ".metadata";
     std::cerr << "input_filename = " << input_data_filename << std::endl;

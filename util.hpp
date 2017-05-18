@@ -347,8 +347,7 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix)
     auto df = fopen_or_fail(docs_file, "rb");
     {
         // (1) skip the numdocs list
-        read_u32(df);
-        read_u32(df);
+        read_uint32_list(df);
         // (2) keep reading lists
         uint32_t max_doc_id = 0;
         while (!feof(df)) {
@@ -361,7 +360,7 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix)
             uint32_t* ptr = (uint32_t*)aligned_alloc(16, n * sizeof(uint32_t));
             ds2i.docids.list_ptrs.push_back(ptr);
             auto in_ptr = list.data();
-            memcpy(ptr, in_ptr, n);
+            memcpy(ptr, in_ptr, n * sizeof(uint32_t));
             ds2i.docids.num_lists++;
             ds2i.docids.num_postings += n;
         }
@@ -380,7 +379,7 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix)
             uint32_t* ptr = (uint32_t*)aligned_alloc(16, n * sizeof(uint32_t));
             ds2i.freqs.list_ptrs.push_back(ptr);
             auto in_ptr = list.data();
-            memcpy(ptr, in_ptr, n);
+            memcpy(ptr, in_ptr, n * sizeof(uint32_t));
             ds2i.freqs.num_lists++;
             ds2i.freqs.num_postings += n;
         }

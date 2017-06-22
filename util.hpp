@@ -369,19 +369,20 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
 
             max_doc_id = std::max(max_doc_id, list.back());
 
-            // gap list
-            uint32_t prev = list[0];
-            for (size_t i = 1; i < n; i++) {
-                uint32_t cur = list[i];
-                list[i] = cur - prev;
-                prev = cur;
-            }
-
             ds2i.docids.list_sizes.push_back(n);
             uint32_t* ptr = (uint32_t*)aligned_alloc(16, n * sizeof(uint32_t));
             ds2i.docids.list_ptrs.push_back(ptr);
             auto in_ptr = list.data();
             memcpy(ptr, in_ptr, n * sizeof(uint32_t));
+
+            // gap list
+            uint32_t prev = ptr[0];
+            for (size_t i = 1; i < n; i++) {
+                uint32_t cur = ptr[i];
+                ptr[i] = cur - prev;
+                prev = cur;
+            }
+
             ds2i.docids.num_lists++;
             ds2i.docids.num_postings += n;
         }

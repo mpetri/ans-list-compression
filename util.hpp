@@ -327,7 +327,7 @@ inline const uint32_t* align_ptr(size_t __align, size_t __size,
     }
 }
 
-std::vector<uint32_t> read_uint32_list(FILE* f)
+std::vector<uint32_t> read_uint32_list(FILE* f, bool increase)
 {
     uint32_t list_len = read_u32(f);
     if (list_len == 0)
@@ -335,7 +335,8 @@ std::vector<uint32_t> read_uint32_list(FILE* f)
     std::vector<uint32_t> list(list_len);
     read_u32s(f, list.data(), list_len);
     for (uint32_t j = 0; j < list_len; j++) {
-        list[j]++; // ensure there are no 0s
+        if (increase)
+            list[j]++; // ensure there are no 0s
     }
     return list;
 }
@@ -355,7 +356,7 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
         // (2) keep reading lists
         uint32_t max_doc_id = 0;
         while (!feof(df)) {
-            const auto& list = read_uint32_list(df);
+            const auto& list = read_uint32_list(df, true);
             size_t n = list.size();
             if (n == 0)
                 break;
@@ -393,7 +394,7 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
     auto ff = fopen_or_fail(freqs_file, "rb");
     {
         while (!feof(ff)) {
-            const auto& list = read_uint32_list(ff);
+            const auto& list = read_uint32_list(ff, false);
             size_t n = list.size();
             if (n == 0)
                 break;

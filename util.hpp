@@ -387,6 +387,14 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
             size_t n = list.size();
             if (n == 0)
                 break;
+
+            // remove non-full parts as we read things
+            if (remove_nonfull && n < block_size)
+                break;
+            if (remove_nonfull && n % block_size != 0) {
+                n = n - (n % block_size);
+            }
+
             ds2i.freqs.list_sizes.push_back(n);
             uint32_t* ptr = (uint32_t*)aligned_alloc(16, n * sizeof(uint32_t));
             ds2i.freqs.list_ptrs.push_back(ptr);

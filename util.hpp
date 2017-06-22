@@ -362,7 +362,7 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
 
             // remove non-full parts as we read things
             if (remove_nonfull && n < block_size)
-                break;
+                continue;
             if (remove_nonfull && n % block_size != 0) {
                 n = n - (n % block_size);
             }
@@ -390,7 +390,7 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
 
             // remove non-full parts as we read things
             if (remove_nonfull && n < block_size)
-                break;
+                continue;
             if (remove_nonfull && n % block_size != 0) {
                 n = n - (n % block_size);
             }

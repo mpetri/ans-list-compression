@@ -77,7 +77,7 @@ void exception_stats(const list_data& ld, std::string part, uint32_t percent)
         }
     }
 
-    for (size_t i = 0; block_stats.size(); i++) {
+    for (size_t i = 0; i < block_stats.size(); i++) {
         std::cout << part << ";" << percent << ";" << num_blocks << ";" << i
                   << ";" << block_stats[i] << ";" << std::endl;
     }
@@ -89,6 +89,8 @@ int main(int argc, char const* argv[])
     auto input_prefix = cmdargs["input-prefix"].as<std::string>();
 
     auto inputs = read_all_input_ds2i(input_prefix, true);
+
+    std::cout << "part;percent;total_blocks;magnitude;num_blocks\n";
 
     exception_stats(inputs.docids, "docids", 0);
     exception_stats(inputs.docids, "docids", 1);

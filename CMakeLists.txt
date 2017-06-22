@@ -25,6 +25,10 @@ add_library(FastPFor ./FastPFor-master/src/bitpacking.cpp
 add_executable(benchmark.x benchmark.cpp)
 target_link_libraries(benchmark.x FastPFor ${Boost_LIBRARIES})
 
+add_executable(benchmark_cikm.x benchmark_cikm.cpp)
+target_link_libraries(benchmark_cikm.x FastPFor ${Boost_LIBRARIES})
+
+
 add_executable(test.x test.cpp)
 target_link_libraries(test.x FastPFor ${Boost_LIBRARIES})
 

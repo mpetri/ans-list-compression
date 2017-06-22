@@ -7,6 +7,8 @@
 #include <memory>
 #include <type_traits>
 
+#include "constants.hpp"
+
 using namespace std::chrono;
 
 inline void* align1(
@@ -338,8 +340,10 @@ std::vector<uint32_t> read_uint32_list(FILE* f)
     return list;
 }
 
-ds2i_data read_all_input_ds2i(std::string ds2i_prefix)
+ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
 {
+    const uint32_t block_size = constants::block_size;
+
     ds2i_data ds2i;
     timer t("read input lists from " + ds2i_prefix);
 
@@ -355,6 +359,14 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix)
             size_t n = list.size();
             if (n == 0)
                 break;
+
+            // remove non-full parts as we read things
+            if (remove_nonfull && n < block_size)
+                break;
+            if (remove_nonfull && n % block_size != 0) {
+                n = n - (n % block_size);
+            }
+
             max_doc_id = std::max(max_doc_id, list.back());
             ds2i.docids.list_sizes.push_back(n);
             uint32_t* ptr = (uint32_t*)aligned_alloc(16, n * sizeof(uint32_t));

@@ -79,7 +79,7 @@ void exception_stats(const list_data& ld, std::string part, uint32_t percent)
 
     for (size_t i = 0; i < block_stats.size(); i++) {
         std::cout << part << ";" << percent << ";" << num_blocks << ";" << i
-                  << ";" << block_stats[i] << ";" << std::endl;
+                  << ";" << block_stats[i] << std::endl;
     }
 }
 

@@ -1,9 +1,8 @@
-benchmark
+benchmark.x
 *.o
-test
-remove-nonfull-blocks
+test.x
 *.a
 *.bin
 *.metadata
 *.x
-*.txt
+build

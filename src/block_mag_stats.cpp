@@ -79,9 +79,11 @@ void block_mag_stats(const list_data& ld, std::string part)
         uint64_t total = 0;
         for (size_t j = 0; j < block_stats[i].size(); j++)
             total += block_stats[i][j];
+        uint64_t cumsum = 0;
         for (size_t j = 0; j < block_stats[i].size(); j++) {
+            cumsum += block_stats[i][j];
             std::cout << part << ";" << i << ";" << j << ";" << total << ";"
-                      << block_stats[i][j] << std::endl;
+                      << block_stats[i][j] << ";" << cumsum << std::endl;
         }
     }
 }
@@ -93,7 +95,7 @@ int main(int argc, char const* argv[])
 
     auto inputs = read_all_input_ds2i(input_prefix, true);
 
-    std::cout << "part;block_max;mag;total;count\n";
+    std::cout << "part;block_max;mag;total;count;cumsum\n";
 
     block_mag_stats(inputs.docids, "docids");
 

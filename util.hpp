@@ -352,7 +352,7 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
     auto df = fopen_or_fail(docs_file, "rb");
     {
         // (1) skip the numdocs list
-        read_uint32_list(df);
+        read_uint32_list(df,false);
         // (2) keep reading lists
         uint32_t max_doc_id = 0;
         while (!feof(df)) {

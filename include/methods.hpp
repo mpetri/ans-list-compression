@@ -1,9 +1,10 @@
 #pragma once
 
-#include "FastPFor-master/headers/compositecodec.h"
-#include "FastPFor-master/headers/optpfor.h"
-#include "FastPFor-master/headers/simple16.h"
-#include "FastPFor-master/headers/variablebyte.h"
+#include "compositecodec.h"
+#include "optpfor.h"
+#include "simple16.h"
+#include "variablebyte.h"
+
 #include "ans-packed.hpp"
 #include "ans-simple.hpp"
 #include "ans-vbyte-single.hpp"

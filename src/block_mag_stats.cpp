@@ -41,45 +41,48 @@ po::variables_map parse_cmdargs(int argc, char const* argv[])
 }
 
 using mag_table = std::array<uint64_t, constants::MAX_MAG + 1>;
+using mag_matrix = std::array<mag_table, constants::MAX_MAG + 1>;
 
-void determine_block_stats(
-    const uint32_t* A, uint32_t num_removed, mag_table& stats)
+void determine_block_stats(const uint32_t* A, mag_matrix& stats)
 {
     const uint32_t bs = constants::block_size;
-    std::array<uint32_t, bs> tmp_buf;
-    std::copy(A, A + bs, std::begin(tmp_buf));
-    std::sort(std::begin(tmp_buf), std::end(tmp_buf));
-
-    uint32_t new_bs = bs - num_removed;
+    static std::array<uint8_t, bs> block_mags;
     uint8_t max_mag = 0;
-    for (size_t i = 0; i < new_bs; i++) {
-        max_mag = std::max(max_mag, ans_magnitude(tmp_buf[i]));
+    for (size_t i = 0; i < bs; i++) {
+        block_mags[i] = ans_magnitude(A[i]);
+        max_mag = std::max(max_mag, block_mags[i]);
     }
-    stats[max_mag]++;
+    for (size_t i = 0; i < bs; i++) {
+        stats[max_mag][block_mags[i]]++;
+    }
 }
 
-void exception_stats(const list_data& ld, std::string part, uint32_t percent)
+void block_mag_stats(const list_data& ld, std::string part)
 {
     const uint32_t bs = constants::block_size;
 
-    mag_table block_stats{ 0 };
+    mag_matrix block_stats;
+    for (size_t i = 0; i < block_stats.size(); i++)
+        for (size_t j = 0; j < block_stats[i].size(); j++)
+            block_stats[i][j] = 0;
 
-    uint32_t elems_removed = double(bs) * double(percent) / 100.0;
-    size_t num_blocks = 0;
     for (size_t i = 0; i < ld.num_lists; i++) {
         size_t list_size = ld.list_sizes[i];
         const uint32_t* in = ld.list_ptrs[i];
-
         for (size_t j = 0; j < list_size; j += bs) {
             auto ptr = in + j;
-            determine_block_stats(ptr, elems_removed, block_stats);
-            num_blocks++;
+            determine_block_stats(ptr, block_stats);
         }
     }
 
     for (size_t i = 0; i < block_stats.size(); i++) {
-        std::cout << part << ";" << percent << ";" << num_blocks << ";" << i
-                  << ";" << block_stats[i] << std::endl;
+        uint64_t total = 0;
+        for (size_t j = 0; j < block_stats[i].size(); j++)
+            total += block_stats[i][j];
+        for (size_t j = 0; j < block_stats[i].size(); j++) {
+            std::cout << part << ";" << i << ";" << j << ";" << total << ";"
+                      << block_stats[i][j] << std::endl;
+        }
     }
 }
 
@@ -90,15 +93,11 @@ int main(int argc, char const* argv[])
 
     auto inputs = read_all_input_ds2i(input_prefix, true);
 
-    std::cout << "part;percent;total_blocks;magnitude;num_blocks\n";
+    std::cout << "part;block_max;mag;total;count\n";
 
-    exception_stats(inputs.docids, "docids", 0);
-    exception_stats(inputs.docids, "docids", 5);
-    exception_stats(inputs.docids, "docids", 10);
+    block_mag_stats(inputs.docids, "docids");
 
-    exception_stats(inputs.freqs, "freqs", 0);
-    exception_stats(inputs.freqs, "freqs", 5);
-    exception_stats(inputs.freqs, "freqs", 10);
+    block_mag_stats(inputs.freqs, "freqs");
 
     return EXIT_SUCCESS;
 }

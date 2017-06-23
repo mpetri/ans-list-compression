@@ -37,5 +37,9 @@ target_link_libraries(test.x FastPFor ${Boost_LIBRARIES})
 add_executable(exception_stats.x src/exception_stats.cpp)
 target_link_libraries(exception_stats.x FastPFor ${Boost_LIBRARIES})
 
+add_executable(block_mag_stats.x src/block_mag_stats.cpp)
+target_link_libraries(block_mag_stats.x FastPFor ${Boost_LIBRARIES})
+
+
 
 

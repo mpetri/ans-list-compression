@@ -66,9 +66,9 @@ void determine_block_stats(
     }
     for (size_t i = 0; i < bs; i++) {
         stats[max_mag][block_mags[i]]++;
-        if (max_mag == 21) {
-            print_block_info(A, bs, block_mags, lnr, offset);
-        }
+    }
+    if (max_mag == 21) {
+        print_block_info(A, bs, block_mags, lnr, offset);
     }
 }
 

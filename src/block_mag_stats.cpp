@@ -51,11 +51,11 @@ void print_block_info(
     for (size_t i = 0; i < n; i++) {
         printf("<%u,%d>", A[i], (int)mags[i]);
     }
-    printf("\n");
+    printf(")\n");
 }
 
 void determine_block_stats(
-    const uint32_t* A, mag_matrix& stats, size_t i, size_t j)
+    const uint32_t* A, mag_matrix& stats, size_t lnr, size_t offset)
 {
     const uint32_t bs = constants::block_size;
     static std::array<uint8_t, bs> block_mags;
@@ -67,7 +67,7 @@ void determine_block_stats(
     for (size_t i = 0; i < bs; i++) {
         stats[max_mag][block_mags[i]]++;
         if (max_mag == 21) {
-            print_block_info(A, bs, block_mags, i, j);
+            print_block_info(A, bs, block_mags, lnr, offset);
         }
     }
 }

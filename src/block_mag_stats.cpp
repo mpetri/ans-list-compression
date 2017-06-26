@@ -54,21 +54,17 @@ void print_block_info(
     printf(")\n");
 }
 
-void determine_block_stats(
-    const uint32_t* A, mag_matrix& stats, size_t lnr, size_t offset)
+void determine_block_stats(const uint32_t* A, uint32_t n, mag_matrix& stats)
 {
     const uint32_t bs = constants::block_size;
     static std::array<uint8_t, bs> block_mags;
     uint8_t max_mag = 0;
-    for (size_t i = 0; i < bs; i++) {
+    for (size_t i = 0; i < n; i++) {
         block_mags[i] = ans_magnitude(A[i]);
         max_mag = std::max(max_mag, block_mags[i]);
     }
-    for (size_t i = 0; i < bs; i++) {
+    for (size_t i = 0; i < n; i++) {
         stats[max_mag][block_mags[i]]++;
-    }
-    if (max_mag == 21) {
-        print_block_info(A, bs, block_mags, lnr, offset);
     }
 }
 
@@ -86,7 +82,10 @@ void block_mag_stats(const list_data& ld, std::string part)
         const uint32_t* in = ld.list_ptrs[i];
         for (size_t j = 0; j < list_size; j += bs) {
             auto ptr = in + j;
-            determine_block_stats(ptr, block_stats, i, j);
+            if (j != 0)
+                determine_block_stats(ptr, bs, block_stats);
+            else
+                determine_block_stats(ptr + 1, bs - 1, block_stats);
         }
     }
 

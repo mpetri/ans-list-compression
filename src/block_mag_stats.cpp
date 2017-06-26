@@ -43,7 +43,19 @@ po::variables_map parse_cmdargs(int argc, char const* argv[])
 using mag_table = std::array<uint64_t, constants::MAX_MAG + 1>;
 using mag_matrix = std::array<mag_table, constants::MAX_MAG + 1>;
 
-void determine_block_stats(const uint32_t* A, mag_matrix& stats)
+template <class T>
+void print_block_info(
+    const uint32_t* A, size_t n, const T& mags, size_t listnr, size_t offset)
+{
+    printf("L[%lu/%lu] = (", listnr, offset);
+    for (size_t i = 0; i < n; i++) {
+        printf("<%u,%d>", A[i], (int)mags[i]);
+    }
+    printf("\n");
+}
+
+void determine_block_stats(
+    const uint32_t* A, mag_matrix& stats, size_t i, size_t j)
 {
     const uint32_t bs = constants::block_size;
     static std::array<uint8_t, bs> block_mags;
@@ -54,6 +66,9 @@ void determine_block_stats(const uint32_t* A, mag_matrix& stats)
     }
     for (size_t i = 0; i < bs; i++) {
         stats[max_mag][block_mags[i]]++;
+        if (max_mag == 21) {
+            print_block_info(A, bs, block_mags, i, j);
+        }
     }
 }
 
@@ -71,7 +86,7 @@ void block_mag_stats(const list_data& ld, std::string part)
         const uint32_t* in = ld.list_ptrs[i];
         for (size_t j = 0; j < list_size; j += bs) {
             auto ptr = in + j;
-            determine_block_stats(ptr, block_stats);
+            determine_block_stats(ptr, block_stats, i, j);
         }
     }
 

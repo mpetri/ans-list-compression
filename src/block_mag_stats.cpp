@@ -52,7 +52,7 @@ void print_block_info(
     printf(")\n");
 }
 
-using mag_table = std::array<uint64_t, constants::MAX_MAG + 1>;
+using mag_table = std::vector<uint64_t>;
 using mag_matrix = std::vector<mag_table>;
 
 struct block_stats {
@@ -60,7 +60,17 @@ struct block_stats {
     mag_matrix mm;
     mag_table mag_stats;
     std::string part;
-    block_stats() { mm.resize(constants::MAX_MAG + 1); }
+    block_stats()
+    {
+        mag_stats.resize(constants::MAX_MAG + 1);
+        mm.resize(constants::MAX_MAG + 1);
+        for (size_t i = 0; i < mm.size(); i++) {
+            mm[i].resize(constants::MAX_MAG + 1);
+            mag_stats[i] = 0;
+            for (size_t j = 0; j < mm[i].size(); j++)
+                mm[i][j] = 0;
+        }
+    }
 };
 
 //  ofs << "part;block_max;mag;total;count;cumsum;skipfirst;numblocks\n";
@@ -106,11 +116,6 @@ block_stats block_mag_stats(
     block_stats bstats;
     bstats.part = part;
     bstats.skipfirst = skipfirst;
-    for (size_t i = 0; i < bstats.mm.size(); i++) {
-        bstats.mag_stats[i] = 0;
-        for (size_t j = 0; j < bstats.mm[i].size(); j++)
-            bstats.mm[i][j] = 0;
-    }
 
     for (size_t i = 0; i < ld.num_lists; i++) {
         size_t list_size = ld.list_sizes[i];

@@ -52,13 +52,13 @@ void print_block_info(
     printf(")\n");
 }
 
-using mag_table = std::vector<uint64_t>;
-using mag_matrix = std::vector<mag_table>;
+using mag_array = std::vector<uint64_t>;
+using mag_matrix = std::vector<mag_array>;
 
 struct block_stats {
     bool skipfirst;
     mag_matrix mm;
-    mag_table mag_stats;
+    mag_array mag_stats;
     std::string part;
     block_stats()
     {
@@ -128,6 +128,7 @@ block_stats block_mag_stats(
                 determine_block_stats(ptr, bs, bstats);
         }
     }
+    return bstats;
 }
 
 int main(int argc, char const* argv[])

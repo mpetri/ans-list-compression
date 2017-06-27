@@ -18,6 +18,7 @@ po::variables_map parse_cmdargs(int argc, char const* argv[])
     // clang-format off
     desc.add_options()
         ("help,h", "produce help message")
+        ("col-name,c",po::value<std::string>()->required(), "name of the collection");
         ("input-prefix,i",po::value<std::string>()->required(), "prefix for the input files (d2si)");
     // clang-format on
     try {
@@ -40,9 +41,6 @@ po::variables_map parse_cmdargs(int argc, char const* argv[])
     return vm;
 }
 
-using mag_table = std::array<uint64_t, constants::MAX_MAG + 1>;
-using mag_matrix = std::array<mag_table, constants::MAX_MAG + 1>;
-
 template <class T>
 void print_block_info(
     const uint32_t* A, size_t n, const T& mags, size_t listnr, size_t offset)
@@ -54,7 +52,37 @@ void print_block_info(
     printf(")\n");
 }
 
-void determine_block_stats(const uint32_t* A, uint32_t n, mag_matrix& stats)
+using mag_table = std::array<uint64_t, constants::MAX_MAG + 1>;
+using mag_matrix = std::array<mag_table, constants::MAX_MAG + 1>;
+
+struct block_stats {
+    bool skipfirst;
+    mag_matrix mm;
+    mag_table mag_stats;
+    std::string part;
+};
+
+//  ofs << "part;block_max;mag;total;count;cumsum;skipfirst;numblocks\n";
+
+std::ostream& operator<<(std::ostream& os, const block_stats& bs)
+{
+    for (size_t bmax = 0; bmax < bs.mm.size(); bmax++) {
+        uint64_t block_with_mag = bs.mag_stats[bmax];
+        uint64_t total = 0;
+        for (size_t j = 0; j < bs.mm[bmax].size(); j++)
+            total += bs.mm[bmax][j];
+        uint64_t cumsum = 0;
+        for (size_t mag = 0; mag < bs.mm[bmax].size(); mag++) {
+            cumsum += bs.mm[bmax][mag];
+            os << bs.part << ";" << bmax << ";" << mag << ";" << total << ";"
+               << bs.mm[bmax][mag] << ";" << cumsum << bs.skipfirst << ";"
+               << block_with_mag << std::endl;
+        }
+    }
+    return os;
+}
+
+void determine_block_stats(const uint32_t* A, uint32_t n, block_stats& stats)
 {
     const uint32_t bs = constants::block_size;
     static std::array<uint8_t, bs> block_mags;
@@ -64,40 +92,34 @@ void determine_block_stats(const uint32_t* A, uint32_t n, mag_matrix& stats)
         max_mag = std::max(max_mag, block_mags[i]);
     }
     for (size_t i = 0; i < n; i++) {
-        stats[max_mag][block_mags[i]]++;
+        stats.mm[max_mag][block_mags[i]]++;
     }
+    stats.mag_stats[max_mag]++;
 }
 
-void block_mag_stats(const list_data& ld, std::string part)
+block_stats block_mag_stats(
+    const list_data& ld, std::string part, bool skipfirst)
 {
     const uint32_t bs = constants::block_size;
 
-    mag_matrix block_stats;
-    for (size_t i = 0; i < block_stats.size(); i++)
-        for (size_t j = 0; j < block_stats[i].size(); j++)
-            block_stats[i][j] = 0;
+    block_stats bstats;
+    bstats.part = part;
+    bstats.skipfirst = skipfirst;
+    for (size_t i = 0; i < bstats.mm.size(); i++) {
+        bstats.mag_stats[i] = 0;
+        for (size_t j = 0; j < bstats.mm[i].size(); j++)
+            bstats.mm[i][j] = 0;
+    }
 
     for (size_t i = 0; i < ld.num_lists; i++) {
         size_t list_size = ld.list_sizes[i];
         const uint32_t* in = ld.list_ptrs[i];
         for (size_t j = 0; j < list_size; j += bs) {
             auto ptr = in + j;
-            if (j != 0)
-                determine_block_stats(ptr, bs, block_stats);
+            if (skipfirst && j == 0)
+                determine_block_stats(ptr + 1, bs - 1, bstats);
             else
-                determine_block_stats(ptr + 1, bs - 1, block_stats);
-        }
-    }
-
-    for (size_t i = 0; i < block_stats.size(); i++) {
-        uint64_t total = 0;
-        for (size_t j = 0; j < block_stats[i].size(); j++)
-            total += block_stats[i][j];
-        uint64_t cumsum = 0;
-        for (size_t j = 0; j < block_stats[i].size(); j++) {
-            cumsum += block_stats[i][j];
-            std::cout << part << ";" << i << ";" << j << ";" << total << ";"
-                      << block_stats[i][j] << ";" << cumsum << std::endl;
+                determine_block_stats(ptr, bs, bstats);
         }
     }
 }
@@ -106,14 +128,25 @@ int main(int argc, char const* argv[])
 {
     auto cmdargs = parse_cmdargs(argc, argv);
     auto input_prefix = cmdargs["input-prefix"].as<std::string>();
+    auto col_name = cmdargs["col-name"].as<std::string>();
 
     auto inputs = read_all_input_ds2i(input_prefix, true);
 
-    std::cout << "part;block_max;mag;total;count;cumsum\n";
+    std::ofstream ofs(col_name + "_block_mag_stats.csv");
 
-    block_mag_stats(inputs.docids, "docids");
+    ofs << "part;block_max;mag;total;count;cumsum;skipfirst;numblocks\n";
 
-    block_mag_stats(inputs.freqs, "freqs");
+    auto bs_docs = block_mag_stats(inputs.docids, "docids", false);
+    ofs << bs_docs;
+
+    bs_docs = block_mag_stats(inputs.docids, "docids", true);
+    ofs << bs_docs;
+
+    auto bs_freqs = block_mag_stats(inputs.freqs, "freqs", false);
+    ofs << bs_freqs;
+
+    bs_freqs = block_mag_stats(inputs.freqs, "freqs", true);
+    ofs << bs_freqs;
 
     return EXIT_SUCCESS;
 }

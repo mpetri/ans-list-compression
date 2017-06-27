@@ -18,7 +18,7 @@ po::variables_map parse_cmdargs(int argc, char const* argv[])
     // clang-format off
     desc.add_options()
         ("help,h", "produce help message")
-        ("col-name,c",po::value<std::string>()->required(), "name of the collection");
+        ("col-name,c",po::value<std::string>()->required(), "name of the collection")
         ("input-prefix,i",po::value<std::string>()->required(), "prefix for the input files (d2si)");
     // clang-format on
     try {

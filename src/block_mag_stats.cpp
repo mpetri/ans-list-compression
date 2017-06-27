@@ -53,13 +53,14 @@ void print_block_info(
 }
 
 using mag_table = std::array<uint64_t, constants::MAX_MAG + 1>;
-using mag_matrix = std::array<mag_table, constants::MAX_MAG + 1>;
+using mag_matrix = std::vector<mag_table>;
 
 struct block_stats {
     bool skipfirst;
     mag_matrix mm;
     mag_table mag_stats;
     std::string part;
+    block_stats() { mm.resize(constants::MAX_MAG + 1); }
 };
 
 //  ofs << "part;block_max;mag;total;count;cumsum;skipfirst;numblocks\n";

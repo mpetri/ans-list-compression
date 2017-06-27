@@ -75,8 +75,8 @@ std::ostream& operator<<(std::ostream& os, const block_stats& bs)
         for (size_t mag = 0; mag < bs.mm[bmax].size(); mag++) {
             cumsum += bs.mm[bmax][mag];
             os << bs.part << ";" << bmax << ";" << mag << ";" << total << ";"
-               << bs.mm[bmax][mag] << ";" << cumsum << bs.skipfirst << ";"
-               << block_with_mag << std::endl;
+               << bs.mm[bmax][mag] << ";" << cumsum << ";" << bs.skipfirst
+               << ";" << block_with_mag << std::endl;
         }
     }
     return os;

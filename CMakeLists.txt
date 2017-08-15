@@ -23,8 +23,8 @@ add_library(FastPFor ./FastPFor-master/src/bitpacking.cpp
 
 
 # OUR BINS
-add_executable(benchmark.x src/benchmark.cpp)
-target_link_libraries(benchmark.x FastPFor ${Boost_LIBRARIES})
+add_executable(non-full-block-costs.x src/non_full_block_costs.cpp)
+target_link_libraries(non-full-block-costs.x FastPFor ${Boost_LIBRARIES})
 
 add_executable(benchmark_cikm.x src/benchmark_cikm.cpp)
 target_link_libraries(benchmark_cikm.x FastPFor ${Boost_LIBRARIES})

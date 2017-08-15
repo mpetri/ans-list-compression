@@ -105,7 +105,7 @@ void compute_overhead(const list_data& ld, std::string p)
 
     for (size_t i = 0; i < removed_blocks.size(); i++) {
         const auto& lst = removed_blocks[i];
-        const auto& lstps = removed_blocks[i];
+        const auto& lstps = removed_blocks_prefixsum[i];
         auto in = lst.data();
         auto inps = lstps.data();
         size_t list_len = lst.size();

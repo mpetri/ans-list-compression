@@ -3,13 +3,14 @@
 #include <array>
 #include <memory>
 
+#include "ans-mag-small.hpp"
 #include "ans-mag.hpp"
 #include "ans-util.hpp"
 #include "util.hpp"
 
 template <uint32_t t_bs = 8> struct ans_packed {
 private:
-    std::vector<ans_mag_model> models;
+    std::vector<ans_mag_model_small> models;
     uint8_t pick_model(const uint32_t* in, size_t n)
     {
         uint8_t max_mag = 0;
@@ -59,7 +60,7 @@ public:
 
         // (2) create the models
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            models.emplace_back(ans_mag_model(mags[i], max_vals[i]));
+            models.emplace_back(ans_mag_model_small(mags[i], max_vals[i]));
         }
 
         // (4) write out models
@@ -83,7 +84,7 @@ public:
         auto initin8 = reinterpret_cast<const uint8_t*>(in);
         auto in8 = initin8;
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            models.emplace_back(ans_mag_model(in8));
+            models.emplace_back(ans_mag_model_small(in8));
         }
         size_t pbytes = in8 - initin8;
         if (pbytes % sizeof(uint32_t) != 0) {

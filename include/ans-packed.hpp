@@ -3,6 +3,7 @@
 #include <array>
 #include <memory>
 
+#include "ans-mag-fast.hpp"
 #include "ans-mag-small.hpp"
 #include "ans-mag.hpp"
 #include "ans-util.hpp"
@@ -10,7 +11,8 @@
 
 template <uint32_t t_bs = 8> struct ans_packed {
 private:
-    std::vector<ans_mag_model_small> models;
+    std::vector<ans_mag_model_small> models_small;
+    std::vector<ans_mag_model_fast> models_fast;
     uint8_t pick_model(const uint32_t* in, size_t n)
     {
         uint8_t max_mag = 0;
@@ -60,14 +62,26 @@ public:
 
         // (2) create the models
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            models.emplace_back(ans_mag_model_small(mags[i], max_vals[i]));
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast.emplace_back(
+                    ans_mag_model_fast(mags[i], max_vals[i]));
+            } else {
+                models_small.emplace_back(
+                    ans_mag_model_small(mags[i], max_vals[i]));
+            }
         }
 
         // (4) write out models
         auto initout8 = reinterpret_cast<uint8_t*>(out);
         auto out8 = initout8;
+        size_t num_fast_models = 0;
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            models[i].write(out8);
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast[i].write(out8);
+                num_fast_models++;
+            } else {
+                models_small[i - num_fast_models].write(out8);
+            }
         }
 
         // (4) align to u32 boundary
@@ -84,7 +98,11 @@ public:
         auto initin8 = reinterpret_cast<const uint8_t*>(in);
         auto in8 = initin8;
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            models.emplace_back(ans_mag_model_small(in8));
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast.emplace_back(ans_mag_model_fast(in8));
+            } else {
+                models_small.emplace_back(ans_mag_model_small(in8));
+            }
         }
         size_t pbytes = in8 - initin8;
         if (pbytes % sizeof(uint32_t) != 0) {
@@ -140,15 +158,27 @@ public:
             }
 
             // reverse encode the block using the selected ANS model
-            const auto& cur_model = models[model_id];
-            uint64_t state = constants::ANS_START_STATE;
             auto out_ptr = tmp_out_buf.data() + tmp_out_buf.size() - 1;
             auto out_start = out_ptr;
-            for (size_t k = 0; k < block_size; k++) {
-                uint32_t num = in[block_offset + block_size - k - 1];
-                state = cur_model.encode(state, num, out_ptr);
+            if (model_id <= constants::MAX_FAST_SEL) {
+                const auto& cur_model = models_fast[model_id];
+                uint64_t state = constants::ANS_START_STATE;
+
+                for (size_t k = 0; k < block_size; k++) {
+                    uint32_t num = in[block_offset + block_size - k - 1];
+                    state = cur_model.encode(state, num, out_ptr);
+                }
+                cur_model.flush(state, out_ptr);
+            } else {
+                const auto& cur_model
+                    = models_small[model_id - models_fast.size()];
+                uint64_t state = constants::ANS_START_STATE;
+                for (size_t k = 0; k < block_size; k++) {
+                    uint32_t num = in[block_offset + block_size - k - 1];
+                    state = cur_model.encode(state, num, out_ptr);
+                }
+                cur_model.flush(state, out_ptr);
             }
-            cur_model.flush(state, out_ptr);
 
             // output the encoding
             size_t enc_size = (out_start - out_ptr);
@@ -201,11 +231,21 @@ public:
                 }
                 continue;
             }
-            const auto& model = models[model_id];
-            size_t enc_size = ans_vbyte_decode_u64(in8);
-            uint64_t state = model.init_decoder(in8, enc_size);
-            for (size_t k = 0; k < block_size; k++) {
-                *out++ = model.decode(state, in8, enc_size);
+
+            if (model_id <= constants::MAX_FAST_SEL) {
+                const auto& model = models_fast[model_id];
+                size_t enc_size = ans_vbyte_decode_u64(in8);
+                uint64_t state = model.init_decoder(in8, enc_size);
+                for (size_t k = 0; k < block_size; k++) {
+                    *out++ = model.decode(state, in8, enc_size);
+                }
+            } else {
+                const auto& model = models_small[model_id - models_fast.size()];
+                size_t enc_size = ans_vbyte_decode_u64(in8);
+                uint64_t state = model.init_decoder(in8, enc_size);
+                for (size_t k = 0; k < block_size; k++) {
+                    *out++ = model.decode(state, in8, enc_size);
+                }
             }
         }
         return out;

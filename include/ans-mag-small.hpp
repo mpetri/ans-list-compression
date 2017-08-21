@@ -147,7 +147,7 @@ public:
             if (dbase[i].value > state_mod_M || dbase[i].value == 0)
                 return i - 1;
         }
-        return dbase.size();
+        return dbase.size() - 1;
     }
 
     void decode_u64(uint64_t state, uint32_t*& out) const

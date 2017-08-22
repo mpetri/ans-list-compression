@@ -117,7 +117,7 @@ struct list_data {
             list_ptrs[i] = nullptr;
     }
 
-    void clear()
+    ~list_data()
     {
         for (size_t i = 0; i < num_lists; i++)
             if (list_ptrs[i] != nullptr) {
@@ -125,14 +125,6 @@ struct list_data {
                 list_ptrs[i] = nullptr;
             }
     }
-
-    ~list_data() { clear(); }
-};
-
-struct ds2i_data {
-    uint32_t num_docs;
-    list_data docids;
-    list_data freqs;
 };
 
 struct timer {
@@ -359,11 +351,11 @@ std::vector<uint32_t> read_uint32_list(FILE* f, bool increase)
     return list;
 }
 
-ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
+list_data read_inputs_ds2i(
+    std::string ds2i_prefix, bool remove_nonfull, bool load_docids)
 {
     const uint32_t block_size = constants::block_size;
 
-    ds2i_data ds2i;
     timer t("read input lists from " + ds2i_prefix);
 
     std::string docs_file = ds2i_prefix + ".docs";
@@ -371,7 +363,8 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
 
     size_t postings_discarded = 0;
     size_t lists_discarded = 0;
-    {
+    list_data ld;
+    if (load_docids) {
         // (1) skip the numdocs list
         read_uint32_list(df, false);
         // (2) keep reading lists
@@ -395,9 +388,9 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
 
             max_doc_id = std::max(max_doc_id, list.back());
 
-            ds2i.docids.list_sizes.push_back(n);
+            ld.list_sizes.push_back(n);
             uint32_t* ptr = (uint32_t*)aligned_alloc(16, n * sizeof(uint32_t));
-            ds2i.docids.list_ptrs.push_back(ptr);
+            ld.list_ptrs.push_back(ptr);
             auto in_ptr = list.data();
             memcpy(ptr, in_ptr, n * sizeof(uint32_t));
 
@@ -409,15 +402,12 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
                 prev = cur;
             }
 
-            ds2i.docids.num_lists++;
-            ds2i.docids.num_postings += n;
+            ld.num_lists++;
+            ld.num_postings += n;
         }
-        ds2i.num_docs = max_doc_id - 1;
-    }
-
-    std::string freqs_file = ds2i_prefix + ".freqs";
-    auto ff = fopen_or_fail(freqs_file, "rb");
-    {
+    } else {
+        std::string freqs_file = ds2i_prefix + ".freqs";
+        auto ff = fopen_or_fail(freqs_file, "rb");
         while (!feof(ff)) {
             const auto& list = read_uint32_list(ff, false);
             size_t n = list.size();
@@ -425,27 +415,28 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
                 break;
 
             // remove non-full parts as we read things
-            if (remove_nonfull && n < block_size)
+            if (remove_nonfull && n < block_size) {
+                postings_discarded += n;
+                lists_discarded++;
                 continue;
+            }
             if (remove_nonfull && n % block_size != 0) {
+                postings_discarded += n % block_size;
                 n = n - (n % block_size);
             }
-
-            ds2i.freqs.list_sizes.push_back(n);
+            ld.list_sizes.push_back(n);
             uint32_t* ptr = (uint32_t*)aligned_alloc(16, n * sizeof(uint32_t));
-            ds2i.freqs.list_ptrs.push_back(ptr);
+            ld.list_ptrs.push_back(ptr);
             auto in_ptr = list.data();
             memcpy(ptr, in_ptr, n * sizeof(uint32_t));
-            ds2i.freqs.num_lists++;
-            ds2i.freqs.num_postings += n;
+            ld.num_lists++;
+            ld.num_postings += n;
         }
     }
-
-    fprintf(stderr, "num_docs = %u\n", ds2i.num_docs);
-    fprintf(stderr, "num_lists = %lu\n", ds2i.freqs.num_lists);
-    fprintf(stderr, "num_postings = %lu\n", ds2i.freqs.num_postings);
+    fprintf(stderr, "num_lists = %lu\n", ld.num_lists);
+    fprintf(stderr, "num_postings = %lu\n", ld.num_postings);
     fprintf(stderr, "postings_discarded = %lu\n", postings_discarded);
     fprintf(stderr, "lists_discarded = %lu\n", lists_discarded);
 
-    return ds2i;
+    return ld;
 }

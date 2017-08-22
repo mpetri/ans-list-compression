@@ -63,7 +63,6 @@ public:
                 max_vals[m_id] = std::max(max_val_in_block, max_vals[m_id]);
                 for (size_t k = 0; k < block_size; k++) {
                     uint32_t num = cur_list[block_offset + k];
-                    uint8_t mag = ans_magnitude(num);
                     mags[m_id][mags_in_block[k]]++;
                 }
             }

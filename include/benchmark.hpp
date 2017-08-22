@@ -30,7 +30,7 @@ encoding_stats compress_lists(const list_data& ld, std::string out_prefix,
     {
         auto out_file = fopen_or_fail(output_data_filename, "wb");
         // allocate a lage output buffer
-        std::vector<uint32_t> out_buf(local_data.num_postings * 1.125);
+        std::vector<uint32_t> out_buf(local_data.num_postings * 0.85);
         std::vector<uint64_t> list_starts(local_data.num_lists + 1);
 
         uint32_t* initout = out_buf.data();

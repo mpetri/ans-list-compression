@@ -54,40 +54,45 @@ int main(int argc, char const* argv[])
     if (cmdargs.count("remove-nonfull")) {
         remove_nonfull = true;
     }
-
-    auto inputs = read_all_input_ds2i(input_prefix, remove_nonfull);
-
     fprintff(stderr,
         "col;part;method;postings;lists;size_bits;encoding_time_ns;"
         "decoding_time_ns\n");
 
-    // run<qmx>(inputs.docids, out_prefix, col_name, "docids");
-    // run<vbyte>(inputs.docids, out_prefix, col_name, "docids");
-    // run<op4<128> >(inputs.docids, out_prefix, col_name, "docids");
-    // run<simple16>(inputs.docids, out_prefix, col_name, "docids");
-    // run<interpolative>(inputs.docids, out_prefix, col_name, "docids");
-    // run<ans_simple>(inputs.docids, out_prefix, col_name, "docids");
-    run<ans_packed<128> >(inputs.docids, out_prefix, col_name, "docids");
-    // run<ans_packed<256> >(inputs.docids, out_prefix, col_name, "docids");
-    // run<ans_vbyte_split<4096> >(inputs.docids, out_prefix, col_name,
-    // "docids");
-    // run<ans_vbyte_single<4096> >(inputs.docids, out_prefix, col_name,
-    // "docids");
+    {
+        bool dids = true;
+        auto docids = read_inputs_ds2i(input_prefix, remove_nonfull, dids);
 
-    // save some space
-    inputs.docids.clear();
+        // run<qmx>(inputs.docids, out_prefix, col_name, "docids");
+        // run<vbyte>(inputs.docids, out_prefix, col_name, "docids");
+        // run<op4<128> >(inputs.docids, out_prefix, col_name, "docids");
+        // run<simple16>(inputs.docids, out_prefix, col_name, "docids");
+        // run<interpolative>(inputs.docids, out_prefix, col_name, "docids");
+        // run<ans_simple>(inputs.docids, out_prefix, col_name, "docids");
+        run<ans_packed<128> >(docids, out_prefix, col_name, "docids");
+        // run<ans_packed<256> >(inputs.docids, out_prefix, col_name, "docids");
+        // run<ans_vbyte_split<4096> >(inputs.docids, out_prefix, col_name,
+        // "docids");
+        // run<ans_vbyte_single<4096> >(inputs.docids, out_prefix, col_name,
+        // "docids");
+    }
 
-    // run<qmx>(inputs.freqs, out_prefix, col_name, "freqs");
-    // run<vbyte>(inputs.freqs, out_prefix, col_name, "freqs");
-    // run<op4<128> >(inputs.freqs, out_prefix, col_name, "freqs");
-    // run<simple16>(inputs.freqs, out_prefix, col_name, "freqs");
-    // run<interpolative>(inputs.freqs, out_prefix, col_name, "freqs");
-    // run<ans_simple>(inputs.freqs, out_prefix, col_name, "freqs");
-    // run<ans_packed<256> >(inputs.freqs, out_prefix, col_name, "freqs");
-    // run<ans_vbyte_split<4096> >(inputs.freqs, out_prefix, col_name, "freqs");
-    // run<ans_vbyte_single<4096> >(inputs.freqs, out_prefix, col_name,
-    // "freqs");
-    run<ans_packed<128> >(inputs.freqs, out_prefix, col_name, "freqs");
+    {
+        bool dids = false;
+        auto freqs = read_inputs_ds2i(input_prefix, remove_nonfull, dids);
+
+        // run<qmx>(inputs.freqs, out_prefix, col_name, "freqs");
+        // run<vbyte>(inputs.freqs, out_prefix, col_name, "freqs");
+        // run<op4<128> >(inputs.freqs, out_prefix, col_name, "freqs");
+        // run<simple16>(inputs.freqs, out_prefix, col_name, "freqs");
+        // run<interpolative>(inputs.freqs, out_prefix, col_name, "freqs");
+        // run<ans_simple>(inputs.freqs, out_prefix, col_name, "freqs");
+        // run<ans_packed<256> >(inputs.freqs, out_prefix, col_name, "freqs");
+        // run<ans_vbyte_split<4096> >(inputs.freqs, out_prefix, col_name,
+        // "freqs");
+        // run<ans_vbyte_single<4096> >(inputs.freqs, out_prefix, col_name,
+        // "freqs");
+        run<ans_packed<128> >(freqs, out_prefix, col_name, "freqs");
+    }
 
     return EXIT_SUCCESS;
 }

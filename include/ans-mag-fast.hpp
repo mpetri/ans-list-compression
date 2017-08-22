@@ -105,7 +105,7 @@ public:
             }
             base += cur_freq;
         }
-        fprintf(stderr, "M = %lu\n", M);
+        fprintf(stderr, "M = %lu (fast)\n", M);
         if (cumsum != M) {
             fprintf(stderr, "cumsum %lu != M %lu\n", cumsum, M);
         }

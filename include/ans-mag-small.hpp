@@ -89,7 +89,7 @@ public:
         }
         mask_M = M - 1;
         log2_M = log2(M);
-        fprintf(stderr, "M = %lu\n", M);
+        fprintf(stderr, "M = %lu (small)\n", M);
         if (cumsum != M) {
             fprintf(stderr, "cumsum %lu != M %lu\n", cumsum, M);
         }

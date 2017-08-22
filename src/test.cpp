@@ -6,51 +6,6 @@
 
 #include <random>
 
-// taken from http://www.csee.usf.edu/~kchriste/tools/genzipf.c
-int zipf(double alpha, int n)
-{
-    static double cur_alpha = 0; // Static first time flag
-    static double c = 0; // Normalization constant
-    static std::mt19937 gen(1234);
-    static std::uniform_real_distribution<double> dis(0, 1);
-    double z; // Uniform random number (0 < z < 1)
-    double sum_prob; // Sum of probabilities
-    double zipf_value; // Computed exponential value to be returned
-    int i; // Loop counter
-
-    // Compute normalization constant on first call only
-    if (cur_alpha != alpha) {
-        for (i = 1; i <= n; i++)
-            c = c + (1.0 / pow((double)i, alpha));
-        c = 1.0 / c;
-        cur_alpha = alpha;
-    }
-
-    // Pull a uniform random number (0 < z < 1)
-    z = dis(gen);
-
-    // Map z to the value
-    sum_prob = 0;
-    for (i = 1; i <= n; i++) {
-        sum_prob = sum_prob + c / pow((double)i, alpha);
-        if (sum_prob >= z) {
-            zipf_value = i;
-            break;
-        }
-    }
-
-    return (zipf_value);
-}
-
-std::vector<uint32_t> generate_random_zipf(double alpha, size_t max, size_t n)
-{
-    std::vector<uint32_t> data(n);
-    for (size_t i = 0; i < n; i++) {
-        data[i] = zipf(alpha, max);
-    }
-    return data;
-}
-
 template <class t_dist>
 std::vector<uint32_t> generate_random_data(
     t_dist& d, size_t num_elems, size_t seed = 42)
@@ -264,123 +219,6 @@ template <typename t_compressor> void test_method()
             encode_and_decode<t_compressor>(data);
         }
     }
-}
-
-TEST_CASE("interpolative coding and decoding", "[interp]")
-{
-    test_method<interpolative>();
-}
-
-TEST_CASE("vbyte coding and decoding", "[vbyte]") { test_method<vbyte>(); }
-
-TEST_CASE("OptPForDelta coding and decoding", "[op4]")
-{
-    test_method<op4<128> >();
-}
-
-TEST_CASE("Simple16 coding and decoding", "[simple16]")
-{
-    test_method<simple16>();
-}
-
-TEST_CASE("QMX coding and decoding", "[qmx]") { test_method<qmx>(); }
-
-TEST_CASE("magnitude", "[ans-util]")
-{
-    SECTION("special cases")
-    {
-        REQUIRE(ans_magnitude(1) == 0);
-        REQUIRE(ans_magnitude(2) == 1);
-        REQUIRE(ans_magnitude(3) == 2);
-        REQUIRE(ans_magnitude(4) == 2);
-    }
-    SECTION("exact powers of 2")
-    {
-        for (uint8_t i = 1; i < 31; i++) {
-            REQUIRE(ans_magnitude(1ULL << i) == i);
-        }
-    }
-    SECTION("exact powers of 2 + 1")
-    {
-        for (uint8_t i = 1; i < 31; i++) {
-            REQUIRE(ans_magnitude((1ULL << i) + 1) == i + 1);
-        }
-    }
-    SECTION("everything small")
-    {
-        uint32_t max = std::numeric_limits<uint32_t>::max();
-        uint32_t max_small = 32768;
-        for (uint32_t i = 2; i < max_small; i++) {
-            uint8_t correct_mag = ceil(log2(i));
-            REQUIRE(ans_magnitude(i) == correct_mag);
-        }
-    }
-    SECTION("random stuff")
-    {
-        for (size_t i = 0; i < 100000; i++) {
-            uint32_t num = rand();
-            uint8_t correct_mag = ceil(log2(num));
-            REQUIRE(ans_magnitude(num) == correct_mag);
-        }
-    }
-}
-
-TEST_CASE("max_val_in_mag", "[ans-util]")
-{
-    REQUIRE(ans_max_val_in_mag(0) == 1);
-    for (uint8_t mag = 1; mag <= 31; mag++) {
-        REQUIRE(ans_max_val_in_mag(mag) == 1U << mag);
-    }
-}
-
-TEST_CASE("min_val_in_mag", "[ans-util]")
-{
-    REQUIRE(ans_min_val_in_mag(0) == 1);
-    for (uint8_t mag = 2; mag <= 31; mag++) {
-        REQUIRE(ans_min_val_in_mag(mag) == ((1U << (mag - 1)) + 1));
-    }
-}
-
-TEST_CASE("ans_uniq_vals_in_mag", "[ans-util]")
-{
-    REQUIRE(ans_uniq_vals_in_mag(0) == 1);
-    REQUIRE(ans_uniq_vals_in_mag(1) == 1);
-    REQUIRE(ans_uniq_vals_in_mag(2) == 2);
-    REQUIRE(ans_uniq_vals_in_mag(3) == 4);
-    REQUIRE(ans_uniq_vals_in_mag(4) == 8);
-    REQUIRE(ans_uniq_vals_in_mag(5) == 16);
-    REQUIRE(ans_uniq_vals_in_mag(6) == 32);
-    REQUIRE(ans_uniq_vals_in_mag(7) == 64);
-    REQUIRE(ans_uniq_vals_in_mag(8) == 128);
-    REQUIRE(ans_uniq_vals_in_mag(9) == 256);
-    REQUIRE(ans_uniq_vals_in_mag(10) == 512);
-    REQUIRE(ans_uniq_vals_in_mag(11) == 1024);
-    REQUIRE(ans_uniq_vals_in_mag(12) == 2 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(13) == 4 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(14) == 8 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(15) == 16 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(16) == 32 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(17) == 64 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(18) == 128 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(19) == 256 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(20) == 512 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(21) == 1024 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(22) == 2 * 1024 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(23) == 4 * 1024 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(24) == 8 * 1024 * 1024);
-    REQUIRE(ans_uniq_vals_in_mag(25) == 16 * 1024 * 1024);
-}
-
-TEST_CASE("next_power_of_two", "[ans-util]")
-{
-    REQUIRE(next_power_of_two(0) == 1);
-    REQUIRE(next_power_of_two(1) == 2);
-    REQUIRE(next_power_of_two(2) == 4);
-    REQUIRE(next_power_of_two(3) == 4);
-    REQUIRE(next_power_of_two(4) == 8);
-    REQUIRE(next_power_of_two(5) == 8);
-    REQUIRE(next_power_of_two(15) == 16);
-    REQUIRE(next_power_of_two(19) == 32);
 }
 
 template <typename t_compressor>
@@ -602,86 +440,205 @@ template <typename t_compressor> void test_method_model_geom()
     }
 }
 
-template <typename t_compressor> void test_method_model_zipf()
+// TEST_CASE("interpolative coding and decoding", "[interp]")
+// {
+//     test_method<interpolative>();
+// }
+
+// TEST_CASE("vbyte coding and decoding", "[vbyte]") { test_method<vbyte>(); }
+
+// TEST_CASE("OptPForDelta coding and decoding", "[op4]")
+// {
+//     test_method<op4<128> >();
+// }
+
+// TEST_CASE("Simple16 coding and decoding", "[simple16]")
+// {
+//     test_method<simple16>();
+// }
+
+// TEST_CASE("QMX coding and decoding", "[qmx]") { test_method<qmx>(); }
+
+// TEST_CASE("magnitude", "[ans-util]")
+// {
+//     SECTION("special cases")
+//     {
+//         REQUIRE(ans_magnitude(1) == 0);
+//         REQUIRE(ans_magnitude(2) == 1);
+//         REQUIRE(ans_magnitude(3) == 2);
+//         REQUIRE(ans_magnitude(4) == 2);
+//     }
+//     SECTION("exact powers of 2")
+//     {
+//         for (uint8_t i = 1; i < 31; i++) {
+//             REQUIRE(ans_magnitude(1ULL << i) == i);
+//         }
+//     }
+//     SECTION("exact powers of 2 + 1")
+//     {
+//         for (uint8_t i = 1; i < 31; i++) {
+//             REQUIRE(ans_magnitude((1ULL << i) + 1) == i + 1);
+//         }
+//     }
+//     SECTION("everything small")
+//     {
+//         uint32_t max = std::numeric_limits<uint32_t>::max();
+//         uint32_t max_small = 32768;
+//         for (uint32_t i = 2; i < max_small; i++) {
+//             uint8_t correct_mag = ceil(log2(i));
+//             REQUIRE(ans_magnitude(i) == correct_mag);
+//         }
+//     }
+//     SECTION("random stuff")
+//     {
+//         for (size_t i = 0; i < 100000; i++) {
+//             uint32_t num = rand();
+//             uint8_t correct_mag = ceil(log2(num));
+//             REQUIRE(ans_magnitude(num) == correct_mag);
+//         }
+//     }
+// }
+
+// TEST_CASE("max_val_in_mag", "[ans-util]")
+// {
+//     REQUIRE(ans_max_val_in_mag(0) == 1);
+//     for (uint8_t mag = 1; mag <= 31; mag++) {
+//         REQUIRE(ans_max_val_in_mag(mag) == 1U << mag);
+//     }
+// }
+
+// TEST_CASE("min_val_in_mag", "[ans-util]")
+// {
+//     REQUIRE(ans_min_val_in_mag(0) == 1);
+//     for (uint8_t mag = 2; mag <= 31; mag++) {
+//         REQUIRE(ans_min_val_in_mag(mag) == ((1U << (mag - 1)) + 1));
+//     }
+// }
+
+// TEST_CASE("ans_uniq_vals_in_mag", "[ans-util]")
+// {
+//     REQUIRE(ans_uniq_vals_in_mag(0) == 1);
+//     REQUIRE(ans_uniq_vals_in_mag(1) == 1);
+//     REQUIRE(ans_uniq_vals_in_mag(2) == 2);
+//     REQUIRE(ans_uniq_vals_in_mag(3) == 4);
+//     REQUIRE(ans_uniq_vals_in_mag(4) == 8);
+//     REQUIRE(ans_uniq_vals_in_mag(5) == 16);
+//     REQUIRE(ans_uniq_vals_in_mag(6) == 32);
+//     REQUIRE(ans_uniq_vals_in_mag(7) == 64);
+//     REQUIRE(ans_uniq_vals_in_mag(8) == 128);
+//     REQUIRE(ans_uniq_vals_in_mag(9) == 256);
+//     REQUIRE(ans_uniq_vals_in_mag(10) == 512);
+//     REQUIRE(ans_uniq_vals_in_mag(11) == 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(12) == 2 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(13) == 4 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(14) == 8 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(15) == 16 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(16) == 32 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(17) == 64 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(18) == 128 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(19) == 256 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(20) == 512 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(21) == 1024 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(22) == 2 * 1024 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(23) == 4 * 1024 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(24) == 8 * 1024 * 1024);
+//     REQUIRE(ans_uniq_vals_in_mag(25) == 16 * 1024 * 1024);
+// }
+
+// TEST_CASE("next_power_of_two", "[ans-util]")
+// {
+//     REQUIRE(next_power_of_two(0) == 1);
+//     REQUIRE(next_power_of_two(1) == 2);
+//     REQUIRE(next_power_of_two(2) == 4);
+//     REQUIRE(next_power_of_two(3) == 4);
+//     REQUIRE(next_power_of_two(4) == 8);
+//     REQUIRE(next_power_of_two(5) == 8);
+//     REQUIRE(next_power_of_two(15) == 16);
+//     REQUIRE(next_power_of_two(19) == 32);
+// }
+
+// TEST_CASE("encode_and_decode geom B=128", "[ans-packed]")
+// {
+//     test_method_model_geom<ans_packed<128> >();
+// }
+
+// TEST_CASE("encode_and_decode allone B=128", "[ans-packed]")
+// {
+//     test_method_model_allone<ans_packed<128> >();
+// }
+
+// TEST_CASE("encode_and_decode randsmall B=128", "[ans-packed]")
+// {
+//     test_method_model_randsmall<ans_packed<128> >();
+// }
+
+// TEST_CASE("encode_and_decode geom B=256", "[ans-packed]")
+// {
+//     test_method_model_geom<ans_packed<256> >();
+// }
+
+// TEST_CASE("encode_and_decode allone B=256", "[ans-packed]")
+// {
+//     test_method_model_allone<ans_packed<256> >();
+// }
+
+// TEST_CASE("encode_and_decode randsmall B=256", "[ans-packed]")
+// {
+//     test_method_model_randsmall<ans_packed<256> >();
+// }
+
+// TEST_CASE("encode_and_decode randlarge B=128", "[ans-packed]")
+// {
+//     size_t seed = 0;
+//     while (seed < 10) {
+//         test_method_model_randlarge<ans_packed<128> >(seed++);
+//     }
+// }
+
+TEST_CASE("encode_and_decode from file", "[ans-packed]")
 {
-    SECTION("zipf alpha 1.0")
-    {
-        SECTION("1000 elements")
-        {
-            auto data = generate_random_zipf(1.0, 1 << 20, 1000);
-            REQUIRE(data.size() == 1000);
-            model_encode_and_decode<t_compressor>(data);
-        }
-        SECTION("10000 elements")
-        {
-            auto data = generate_random_zipf(1.0, 1 << 20, 10000);
-            REQUIRE(data.size() == 10000);
-            model_encode_and_decode<t_compressor>(data);
-        }
-        SECTION("100000 elements")
-        {
-            auto data = generate_random_zipf(1.0, 1 << 20, 100000);
-            REQUIRE(data.size() == 100000);
-            model_encode_and_decode<t_compressor>(data);
+    ans_packed<128> comp;
+    { // (1) load model
+        std::ifstream ifs("../data/test_ans_packed_model.txt");
+        comp.load_plain(ifs);
+    }
+    std::vector<uint32_t> input;
+    { // (2) read test data
+        std::ifstream ifs("../data/test_list_data.txt");
+        size_t skip = 19584;
+        for (std::string line; std::getline(ifs, line);) {
+            uint32_t x = std::stoul(line);
+            if (skip != 0) {
+                skip--;
+            } else {
+                input.push_back(x);
+            }
+            if (input.size() == 128)
+                break;
         }
     }
-    SECTION("zipf alpha 1.2")
-    {
-        SECTION("1000 elements")
-        {
-            auto data = generate_random_zipf(1.2, 1 << 20, 1000);
-            REQUIRE(data.size() == 1000);
-            model_encode_and_decode<t_compressor>(data);
+    // compress
+    auto out = reinterpret_cast<uint32_t*>(
+        aligned_alloc(16, input.size() * 2 * sizeof(uint32_t)));
+    const uint32_t* in = input.data();
+    size_t u32_written = input.size() * 2;
+    comp.encodeArray(in, input.size(), out, u32_written);
+    REQUIRE(u32_written < input.size() * 2);
+
+    // decompress
+    std::vector<uint32_t> decompressed_data(input.size() + 1024);
+    uint32_t* recovered = decompressed_data.data();
+    auto new_out = comp.decodeArray(out, u32_written, recovered, input.size());
+    size_t u32_processed = new_out - out;
+    decompressed_data.resize(input.size());
+    for (size_t i = 0; i < input.size(); i++) {
+        if (decompressed_data[i] != input[i]) {
+            std::cerr << "ERROR at i=" << i << "/" << input.size()
+                      << " is=" << decompressed_data[i]
+                      << " expected=" << input[i] << std::endl;
         }
-        SECTION("10000 elements")
-        {
-            auto data = generate_random_zipf(1.2, 1 << 20, 10000);
-            REQUIRE(data.size() == 10000);
-            model_encode_and_decode<t_compressor>(data);
-        }
-        SECTION("100000 elements")
-        {
-            auto data = generate_random_zipf(1.2, 1 << 20, 100000);
-            REQUIRE(data.size() == 100000);
-            model_encode_and_decode<t_compressor>(data);
-        }
+        REQUIRE(decompressed_data[i] == input[i]);
     }
-}
-
-TEST_CASE("encode_and_decode geom B=128", "[ans-packed]")
-{
-    test_method_model_geom<ans_packed<128> >();
-}
-
-TEST_CASE("encode_and_decode allone B=128", "[ans-packed]")
-{
-    test_method_model_allone<ans_packed<128> >();
-}
-
-TEST_CASE("encode_and_decode randsmall B=128", "[ans-packed]")
-{
-    test_method_model_randsmall<ans_packed<128> >();
-}
-
-TEST_CASE("encode_and_decode geom B=256", "[ans-packed]")
-{
-    test_method_model_geom<ans_packed<256> >();
-}
-
-TEST_CASE("encode_and_decode allone B=256", "[ans-packed]")
-{
-    test_method_model_allone<ans_packed<256> >();
-}
-
-TEST_CASE("encode_and_decode randsmall B=256", "[ans-packed]")
-{
-    test_method_model_randsmall<ans_packed<256> >();
-}
-
-TEST_CASE("encode_and_decode randlarge B=128", "[ans-packed]")
-{
-    size_t seed = 0;
-    while (seed < 10) {
-        test_method_model_randlarge<ans_packed<128> >(seed++);
-    }
+    REQUIRE(u32_written == u32_processed);
+    aligned_free(out);
 }

@@ -6,10 +6,56 @@
 
 #include <random>
 
-template <class t_dist>
-std::vector<uint32_t> generate_random_data(t_dist& d, size_t num_elems)
+// taken from http://www.csee.usf.edu/~kchriste/tools/genzipf.c
+int zipf(double alpha, int n)
 {
-    std::mt19937 gen(42);
+    static double cur_alpha = 0; // Static first time flag
+    static double c = 0; // Normalization constant
+    static std::mt19937 gen(1234);
+    static std::uniform_real_distribution<double> dis(0, 1);
+    double z; // Uniform random number (0 < z < 1)
+    double sum_prob; // Sum of probabilities
+    double zipf_value; // Computed exponential value to be returned
+    int i; // Loop counter
+
+    // Compute normalization constant on first call only
+    if (cur_alpha != alpha) {
+        for (i = 1; i <= n; i++)
+            c = c + (1.0 / pow((double)i, alpha));
+        c = 1.0 / c;
+        cur_alpha = alpha;
+    }
+
+    // Pull a uniform random number (0 < z < 1)
+    z = dis(gen);
+
+    // Map z to the value
+    sum_prob = 0;
+    for (i = 1; i <= n; i++) {
+        sum_prob = sum_prob + c / pow((double)i, alpha);
+        if (sum_prob >= z) {
+            zipf_value = i;
+            break;
+        }
+    }
+
+    return (zipf_value);
+}
+
+std::vector<uint32_t> generate_random_zipf(double alpha, size_t max, size_t n)
+{
+    std::vector<uint32_t> data(n);
+    for (size_t i = 0; i < n; i++) {
+        data[i] = zipf(alpha, max);
+    }
+    return data;
+}
+
+template <class t_dist>
+std::vector<uint32_t> generate_random_data(
+    t_dist& d, size_t num_elems, size_t seed = 42)
+{
+    std::mt19937 gen(seed);
     std::vector<uint32_t> data(num_elems);
     for (size_t i = 0; i < num_elems; i++) {
         data[i] = d(gen) + 1; // we don't compress 0
@@ -436,32 +482,32 @@ template <typename t_compressor> void test_method_model_randsmall()
     }
 }
 
-template <typename t_compressor> void test_method_model_randlarge()
+template <typename t_compressor> void test_method_model_randlarge(size_t seed)
 {
-    SECTION("uniform random large values")
+    SECTION("uniform random large values " + std::to_string(seed));
     {
         std::uniform_int_distribution<uint32_t> d(1, 1 << 23);
         SECTION("1000 elements")
         {
-            auto data = generate_random_data(d, 1000);
+            auto data = generate_random_data(d, 1000, seed);
             REQUIRE(data.size() == 1000);
             model_encode_and_decode<t_compressor>(data);
         }
         SECTION("10000 elements")
         {
-            auto data = generate_random_data(d, 10000);
+            auto data = generate_random_data(d, 10000, seed);
             REQUIRE(data.size() == 10000);
             model_encode_and_decode<t_compressor>(data);
         }
         SECTION("100000 elements")
         {
-            auto data = generate_random_data(d, 100000);
+            auto data = generate_random_data(d, 100000, seed);
             REQUIRE(data.size() == 100000);
             model_encode_and_decode<t_compressor>(data);
         }
         SECTION("1000000 elements")
         {
-            auto data = generate_random_data(d, 1000000);
+            auto data = generate_random_data(d, 1000000, seed);
             REQUIRE(data.size() == 1000000);
             model_encode_and_decode<t_compressor>(data);
         }
@@ -556,6 +602,52 @@ template <typename t_compressor> void test_method_model_geom()
     }
 }
 
+template <typename t_compressor> void test_method_model_zipf()
+{
+    SECTION("zipf alpha 1.0")
+    {
+        SECTION("1000 elements")
+        {
+            auto data = generate_random_zipf(1.0, 1 << 20, 1000);
+            REQUIRE(data.size() == 1000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("10000 elements")
+        {
+            auto data = generate_random_zipf(1.0, 1 << 20, 10000);
+            REQUIRE(data.size() == 10000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("100000 elements")
+        {
+            auto data = generate_random_zipf(1.0, 1 << 20, 100000);
+            REQUIRE(data.size() == 100000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+    }
+    SECTION("zipf alpha 1.2")
+    {
+        SECTION("1000 elements")
+        {
+            auto data = generate_random_zipf(1.2, 1 << 20, 1000);
+            REQUIRE(data.size() == 1000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("10000 elements")
+        {
+            auto data = generate_random_zipf(1.2, 1 << 20, 10000);
+            REQUIRE(data.size() == 10000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("100000 elements")
+        {
+            auto data = generate_random_zipf(1.2, 1 << 20, 100000);
+            REQUIRE(data.size() == 100000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+    }
+}
+
 TEST_CASE("encode_and_decode geom B=128", "[ans-packed]")
 {
     test_method_model_geom<ans_packed<128> >();
@@ -588,5 +680,8 @@ TEST_CASE("encode_and_decode randsmall B=256", "[ans-packed]")
 
 TEST_CASE("encode_and_decode randlarge B=128", "[ans-packed]")
 {
-    test_method_model_randlarge<ans_packed<128> >();
+    size_t seed = 0;
+    while (seed < 10) {
+        test_method_model_randlarge<ans_packed<128> >(seed++);
+    }
 }

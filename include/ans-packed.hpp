@@ -29,6 +29,69 @@ public:
     const uint32_t bs = t_bs;
 
 public:
+    const uint32_t* load_binary(const uint32_t* in)
+    {
+        auto initin8 = reinterpret_cast<const uint8_t*>(in);
+        auto in8 = initin8;
+        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast.emplace_back(ans_mag_model_fast(in8));
+            } else {
+                models_small.emplace_back(ans_mag_model_small(in8));
+            }
+        }
+        size_t pbytes = in8 - initin8;
+        if (pbytes % sizeof(uint32_t) != 0) {
+            pbytes += sizeof(uint32_t) - (pbytes % (sizeof(uint32_t)));
+        }
+        size_t u32s = pbytes / sizeof(uint32_t);
+        return in + u32s;
+    }
+    void store_binary(uint32_t* out, size_t& nvalue) const
+    {
+        auto initout8 = reinterpret_cast<uint8_t*>(out);
+        auto out8 = initout8;
+        size_t num_fast_models = 0;
+        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast[i].write(out8);
+                num_fast_models++;
+            } else {
+                models_small[i - num_fast_models].write(out8);
+            }
+        }
+
+        // (4) align to u32 boundary
+        size_t wb = out8 - initout8;
+        if (wb % sizeof(uint32_t) != 0) {
+            wb += sizeof(uint32_t) - (wb % (sizeof(uint32_t)));
+        }
+        nvalue = wb / sizeof(uint32_t);
+    }
+    void load_plain(std::istream& is)
+    {
+        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast.emplace_back(ans_mag_model_fast(is));
+            } else {
+                models_small.emplace_back(ans_mag_model_small(is));
+            }
+        }
+    }
+    void store_plain(std::ostream& os) const
+    {
+        size_t num_fast_models = 0;
+        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast[i].write_plain(os);
+                num_fast_models++;
+            } else {
+                models_small[i - num_fast_models].write_plain(os);
+            }
+        }
+    }
+
+public:
     void init(const list_data& input, uint32_t* out, size_t& nvalue)
     {
         // (1) count frequencies for each model
@@ -81,46 +144,16 @@ public:
 
         // (3) write out models
         if (out != nullptr) {
-            auto initout8 = reinterpret_cast<uint8_t*>(out);
-            auto out8 = initout8;
-            size_t num_fast_models = 0;
-            for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-                if (i <= constants::MAX_FAST_SEL) {
-                    models_fast[i].write(out8);
-                    num_fast_models++;
-                } else {
-                    models_small[i - num_fast_models].write(out8);
-                }
-            }
-
-            // (4) align to u32 boundary
-            size_t wb = out8 - initout8;
-            if (wb % sizeof(uint32_t) != 0) {
-                wb += sizeof(uint32_t) - (wb % (sizeof(uint32_t)));
-            }
-            nvalue = wb / sizeof(uint32_t);
+            store_binary(out, nvalue);
         }
     }
 
     const uint32_t* dec_init(const uint32_t* in)
     {
         std::cerr << "dec_init() START" << std::endl;
-        auto initin8 = reinterpret_cast<const uint8_t*>(in);
-        auto in8 = initin8;
-        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            if (i <= constants::MAX_FAST_SEL) {
-                models_fast.emplace_back(ans_mag_model_fast(in8));
-            } else {
-                models_small.emplace_back(ans_mag_model_small(in8));
-            }
-        }
-        size_t pbytes = in8 - initin8;
-        if (pbytes % sizeof(uint32_t) != 0) {
-            pbytes += sizeof(uint32_t) - (pbytes % (sizeof(uint32_t)));
-        }
-        size_t u32s = pbytes / sizeof(uint32_t);
+        auto new_out = load_binary(in);
         std::cerr << "dec_init() STOP" << std::endl;
-        return in + u32s;
+        return new_out;
     }
 
     void encodeArray(

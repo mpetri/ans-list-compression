@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <sstream>
 
 #include "ans-constants.hpp"
 #include "ans-mag.hpp"
@@ -25,6 +26,34 @@ public:
     std::vector<dec_base> dbase;
 
 public:
+    ans_mag_model_small(std::istream& is)
+    {
+        std::string line;
+
+        { // (1) total max val
+            std::getline(is, line);
+            std::istringstream iss(line);
+            iss >> total_max_val;
+        }
+
+        // (2) read the normalized magnitudes
+        std::getline(is, line);
+        std::istringstream iss(line);
+        bool all_zero = true;
+        for (size_t i = 0; i < norm_mags.size(); i++) {
+            iss >> norm_mags[i];
+            if (norm_mags[i] != 0)
+                all_zero = false;
+        }
+
+        // (1a) empty model??
+        if (all_zero)
+            return;
+
+        // (2) init the model
+        init_model();
+    }
+
     ans_mag_model_small(const uint8_t*& in8)
     {
         total_max_val = ans_vbyte_decode_u64(in8);
@@ -214,5 +243,13 @@ public:
         for (size_t i = 0; i < norm_mags.size(); i++) {
             ans_vbyte_encode_u64(out8, norm_mags[i]);
         }
+    }
+    void write_plain(std::ostream& os) const
+    {
+        os << total_max_val << std::endl;
+        for (size_t i = 0; i < norm_mags.size(); i++) {
+            os << norm_mags[i] << " ";
+        }
+        os << std::endl;
     }
 };

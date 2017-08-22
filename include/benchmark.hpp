@@ -46,11 +46,23 @@ encoding_stats compress_lists(const list_data& ld, std::string out_prefix,
                 comp.init(ld, out, encoded_u32);
                 out += encoded_u32;
                 total_u32_written += encoded_u32;
+
+                std::ofstream ofs("./packed_model.txt");
+                comp.store_plain(ofs);
             }
 
             for (size_t i = 0; i < local_data.num_lists; i++) {
                 size_t list_size = local_data.list_sizes[i];
                 const uint32_t* in = local_data.list_ptrs[i];
+
+                if (i == 0) {
+                    std::ofstream ofs("./list_data.txt");
+                    for (size_t j = 0; j < list_size; j++) {
+                        ofs << in[j] << std::endl;
+                    }
+                    exit(EXIT_SUCCESS);
+                }
+
                 list_starts[i] = (out - initout);
                 size_t encoded_u32 = local_data.num_postings;
                 comp.encodeArray(in, list_size, out, encoded_u32);

@@ -30,7 +30,7 @@ public:
     uint64_t total_max_val = 0;
 
 public:
-    ans_mag_model_fast(std::istream& is)
+    template <class t_stream> ans_mag_model_fast(t_stream& is)
     {
         std::string line;
 
@@ -256,11 +256,11 @@ public:
             ans_vbyte_encode_u64(out8, norm_mags[i]);
         }
     }
-    void write_plain(std::ostream& os) const
+    template <class t_stream> void write_plain(t_stream& os) const
     {
-        os << std::to_string(total_max_val) << std::endl;
+        os << total_max_val << std::endl;
         for (size_t i = 0; i < norm_mags.size(); i++) {
-            os << std::to_string(norm_mags[i]) << " ";
+            os << norm_mags[i] << " ";
         }
         os << std::endl;
     }

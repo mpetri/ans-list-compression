@@ -68,7 +68,7 @@ public:
         }
         nvalue = wb / sizeof(uint32_t);
     }
-    void load_plain(std::istream& is)
+    void load_plain(std::ifstream& is)
     {
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
             if (i <= constants::MAX_FAST_SEL) {
@@ -78,7 +78,7 @@ public:
             }
         }
     }
-    void store_plain(std::ostream& os) const
+    void store_plain(std::ofstream& os) const
     {
         size_t num_fast_models = 0;
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {

@@ -8,6 +8,8 @@
 #include "bits.hpp"
 #include "util.hpp"
 
+#include "ans-constants.hpp"
+
 inline uint8_t ans_median(uint8_t a, uint8_t b, uint8_t c)
 {
     uint8_t med = 0;
@@ -21,7 +23,8 @@ inline uint8_t ans_median(uint8_t a, uint8_t b, uint8_t c)
     return med;
 }
 
-uint32_t ans_max_val_in_mag(uint8_t mag, uint32_t max_val = 0)
+uint32_t ans_max_val_in_mag(
+    uint8_t mag, uint32_t max_val = std::numeric_limits<uint32_t>::max())
 {
     uint32_t maxv = 1;
     if (mag != 0)
@@ -38,7 +41,8 @@ uint32_t ans_min_val_in_mag(uint8_t mag)
     return (1ULL << (mag - 1)) + 1;
 }
 
-uint32_t ans_uniq_vals_in_mag(uint8_t mag, uint32_t max_val = 0)
+uint32_t ans_uniq_vals_in_mag(
+    uint8_t mag, uint32_t max_val = std::numeric_limits<uint32_t>::max())
 {
     return ans_max_val_in_mag(mag, max_val) - ans_min_val_in_mag(mag) + 1;
 }
@@ -105,6 +109,7 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
             freqs[m] = 1;
         }
     }
+
     /* second step in scaling process, to make the first freq
        less than or equal to TOPFREQ */
     if (freqs[0] > constants::TOPFREQ) {
@@ -129,20 +134,23 @@ t_vec normalize_power_of_two_alistair(const t_vec& mag_freqs, uint32_t max_val)
     /* fourth phase, round up to a power of two and then redistribute */
     uint64_t target_power = next_power_of_two(M);
     uint64_t excess = target_power - M;
+
     /* flow that excess count backwards to the beginning of
        the selectors array, spreading it out across the buckets...
     */
     for (int8_t m = int8_t(max_mag); m >= 0; m--) {
         double ratio = 1.0 * excess / M;
         uint64_t adder = ratio * freqs[m];
-        excess -= ans_uniq_vals_in_mag(m, max_val) * adder;
-        M -= ans_uniq_vals_in_mag(m, max_val) * freqs[m];
-        freqs[m] += adder;
+        uint64_t sub = ans_uniq_vals_in_mag(m, max_val) * adder;
+        if (sub <= excess) {
+            excess -= sub;
+            M -= sub;
+            freqs[m] += adder;
+        }
     }
     if (excess != 0) {
         freqs[0] += excess;
     }
-
     M = 0;
     for (size_t i = 0; i <= max_mag; i++) {
         M += int64_t(freqs[i] * ans_uniq_vals_in_mag(i, max_val));

@@ -70,6 +70,20 @@ struct list_data {
         ld.num_postings = 0;
         ld.num_lists = 0;
     }
+    list_data(const std::vector<uint32_t>& vec)
+    {
+        num_postings = vec.size();
+        num_lists = 1;
+        list_ptrs.resize(1);
+        list_sizes.resize(1);
+        list_sizes[0] = vec.size();
+        list_ptrs[0]
+            = (uint32_t*)aligned_alloc(16, list_sizes[0] * sizeof(uint32_t));
+        for (size_t j = 0; j < vec.size(); j++) {
+            list_ptrs[0][j] = vec[j];
+        }
+    }
+
     list_data(const list_data& ld)
     {
         num_postings = ld.num_postings;
@@ -352,7 +366,7 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
     auto df = fopen_or_fail(docs_file, "rb");
     {
         // (1) skip the numdocs list
-        read_uint32_list(df,false);
+        read_uint32_list(df, false);
         // (2) keep reading lists
         uint32_t max_doc_id = 0;
         while (!feof(df)) {

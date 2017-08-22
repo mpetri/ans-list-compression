@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include "ans-constants.hpp"
 #include "ans-mag.hpp"
 #include "ans-util.hpp"
@@ -86,7 +88,7 @@ public:
                 = ((norm_lower_bound / M) * constants::OUTPUT_BASE) * nfreq[i];
         }
         mask_M = M - 1;
-        log2_M = std::log2(M);
+        log2_M = log2(M);
         fprintf(stderr, "M = %lu\n", M);
         if (cumsum != M) {
             fprintf(stderr, "cumsum %lu != M %lu\n", cumsum, M);
@@ -95,7 +97,7 @@ public:
         // create decode model
         size_t j = 0;
         dbase.resize(non_zero_mags);
-        for (size_t i = 0; i <= constants::MAX_MAG; i++) {
+        for (size_t i = 0; i < norm_mags.size(); i++) {
             if (nfreq[i] != 0) {
                 dbase[j].value = base[i];
                 dbase[j].mag = i;
@@ -146,8 +148,8 @@ public:
 
     uint8_t find_mag(uint64_t state_mod_M) const
     {
-        for (size_t i = 1; i <= dbase.size(); i++) {
-            if (dbase[i].value > state_mod_M || dbase[i].value == 0)
+        for (size_t i = 1; i < dbase.size(); i++) {
+            if (dbase[i].value > state_mod_M)
                 return i - 1;
         }
         return dbase.size() - 1;
@@ -182,6 +184,14 @@ public:
         uint64_t state_mod_M = state & mask_M;
         uint8_t boff = find_mag(state_mod_M);
         uint8_t state_mag = dbase[boff].mag;
+        // std::cout << "state_mod_M = " << state_mod_M << std::endl;
+        // std::cout << "dbase = ";
+        // for (size_t i = 0; i < dbase.size(); i++) {
+        //     std::cout << "<base=" << dbase[i].value << ",mag=" << i << ">";
+        // }
+        // std::cout << std::endl;
+        // std::cout << "boff=" << (int)boff << std::endl;
+        // std::cout << "state_mag = " << (int)state_mag << std::endl;
         uint32_t f = nfreq[state_mag];
         uint64_t mag_offset = (state_mod_M - dbase[boff].value);
         uint64_t offset = mag_offset % f;

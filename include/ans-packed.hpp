@@ -63,33 +63,37 @@ public:
         // (2) create the models
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
             if (i <= constants::MAX_FAST_SEL) {
-                models_fast.emplace_back(
-                    ans_mag_model_fast(mags[i], max_vals[i]));
+                // models_fast.emplace_back(
+                //     ans_mag_model_fast(mags[i], max_vals[i]));
+                models_small.emplace_back(
+                    ans_mag_model_small(mags[i], max_vals[i]));
             } else {
                 models_small.emplace_back(
                     ans_mag_model_small(mags[i], max_vals[i]));
             }
         }
 
-        // (4) write out models
-        auto initout8 = reinterpret_cast<uint8_t*>(out);
-        auto out8 = initout8;
-        size_t num_fast_models = 0;
-        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            if (i <= constants::MAX_FAST_SEL) {
-                models_fast[i].write(out8);
-                num_fast_models++;
-            } else {
-                models_small[i - num_fast_models].write(out8);
+        // (3) write out models
+        if (out != nullptr) {
+            auto initout8 = reinterpret_cast<uint8_t*>(out);
+            auto out8 = initout8;
+            size_t num_fast_models = 0;
+            for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
+                if (i <= constants::MAX_FAST_SEL) {
+                    models_fast[i].write(out8);
+                    num_fast_models++;
+                } else {
+                    models_small[i - num_fast_models].write(out8);
+                }
             }
-        }
 
-        // (4) align to u32 boundary
-        size_t wb = out8 - initout8;
-        if (wb % sizeof(uint32_t) != 0) {
-            wb += sizeof(uint32_t) - (wb % (sizeof(uint32_t)));
+            // (4) align to u32 boundary
+            size_t wb = out8 - initout8;
+            if (wb % sizeof(uint32_t) != 0) {
+                wb += sizeof(uint32_t) - (wb % (sizeof(uint32_t)));
+            }
+            nvalue = wb / sizeof(uint32_t);
         }
-        nvalue = wb / sizeof(uint32_t);
     }
 
     const uint32_t* dec_init(const uint32_t* in)
@@ -99,7 +103,8 @@ public:
         auto in8 = initin8;
         for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
             if (i <= constants::MAX_FAST_SEL) {
-                models_fast.emplace_back(ans_mag_model_fast(in8));
+                // models_fast.emplace_back(ans_mag_model_fast(in8));
+                models_small.emplace_back(ans_mag_model_small(in8));
             } else {
                 models_small.emplace_back(ans_mag_model_small(in8));
             }
@@ -160,7 +165,7 @@ public:
             // reverse encode the block using the selected ANS model
             auto out_ptr = tmp_out_buf.data() + tmp_out_buf.size() - 1;
             auto out_start = out_ptr;
-            if (model_id <= constants::MAX_FAST_SEL) {
+            if (false && model_id <= constants::MAX_FAST_SEL) {
                 const auto& cur_model = models_fast[model_id];
                 uint64_t state = constants::ANS_START_STATE;
 
@@ -170,18 +175,24 @@ public:
                 }
                 cur_model.flush(state, out_ptr);
             } else {
-                const auto& cur_model
-                    = models_small[model_id - models_fast.size()];
+                // const auto& cur_model
+                //     = models_small[model_id - models_fast.size()];
+                const auto& cur_model = models_small[model_id];
                 uint64_t state = constants::ANS_START_STATE;
                 for (size_t k = 0; k < block_size; k++) {
                     uint32_t num = in[block_offset + block_size - k - 1];
+                    // std::cout << "encode(s=" << state << ",num=" << num
+                    //           << ") -> ";
                     state = cur_model.encode(state, num, out_ptr);
+                    // std::cout << state << std::endl;
                 }
                 cur_model.flush(state, out_ptr);
+                // std::cout << "final state = " << state << std::endl;
             }
 
             // output the encoding
             size_t enc_size = (out_start - out_ptr);
+            // std::cout << "enc_size = " << enc_size << std::endl;
             ans_vbyte_encode_u64(out8, enc_size);
             memcpy(out8, out_ptr, enc_size);
 
@@ -194,7 +205,7 @@ public:
         }
         nvalue = wb / sizeof(uint32_t);
     }
-    uint32_t* decodeArray(
+    const uint32_t* decodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t list_len)
     {
         size_t left = list_len % t_bs;
@@ -232,22 +243,36 @@ public:
                 continue;
             }
 
-            if (model_id <= constants::MAX_FAST_SEL) {
-                const auto& model = models_fast[model_id];
+            if (false && model_id <= constants::MAX_FAST_SEL) {
+                // const auto& model = models_fast[model_id];
+                const auto& model = models_small[model_id];
                 size_t enc_size = ans_vbyte_decode_u64(in8);
                 uint64_t state = model.init_decoder(in8, enc_size);
                 for (size_t k = 0; k < block_size; k++) {
                     *out++ = model.decode(state, in8, enc_size);
                 }
             } else {
-                const auto& model = models_small[model_id - models_fast.size()];
+                const auto& model = models_small[model_id];
+                // const auto& model = models_small[model_id -
+                // models_fast.size()];
                 size_t enc_size = ans_vbyte_decode_u64(in8);
+                // std::cout << "enc_size = " << enc_size << std::endl;
                 uint64_t state = model.init_decoder(in8, enc_size);
+                // std::cout << "initial state = " << state << std::endl;
                 for (size_t k = 0; k < block_size; k++) {
+                    // std::cout << "decode(s=" << state << ")";
                     *out++ = model.decode(state, in8, enc_size);
+                    // std::cout << "-> (num=" << *(out - 1) << ",s=" << state
+                    //           << ")" << std::endl;
                 }
+                // std::cout << "final enc_size = " << enc_size << std::endl;
             }
         }
-        return out;
+        size_t rb = in8 - initin8;
+        if (rb % sizeof(uint32_t) != 0) {
+            rb += sizeof(uint32_t) - (rb % (sizeof(uint32_t)));
+        }
+        size_t u32_processed = rb >> 2;
+        return in + u32_processed;
     }
 };

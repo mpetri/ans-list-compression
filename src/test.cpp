@@ -336,3 +336,257 @@ TEST_CASE("next_power_of_two", "[ans-util]")
     REQUIRE(next_power_of_two(15) == 16);
     REQUIRE(next_power_of_two(19) == 32);
 }
+
+template <typename t_compressor>
+void model_encode_and_decode(std::vector<uint32_t>& input)
+{
+    t_compressor comp;
+    if (comp.required_increasing) {
+        std::partial_sum(input.begin(), input.end(), input.begin());
+        std::sort(input.begin(), input.end()); // ugly way to handle overflows
+        auto new_end = std::unique(input.begin(), input.end());
+        input.resize(std::distance(input.begin(), new_end));
+    }
+
+    auto out = reinterpret_cast<uint32_t*>(
+        aligned_alloc(16, input.size() * 3 * sizeof(uint32_t)));
+    auto ld = list_data(input);
+
+    // store model to file
+    size_t u32_written = input.size() * 2;
+    comp.init(ld, nullptr, u32_written);
+
+    // compress
+    const uint32_t* in = input.data();
+    u32_written = input.size() * 2;
+    comp.encodeArray(in, input.size(), out, u32_written);
+    REQUIRE(u32_written < input.size() * 2);
+
+    // decompress
+    std::vector<uint32_t> decompressed_data(input.size() + 1024);
+    uint32_t* recovered = decompressed_data.data();
+    auto new_out = comp.decodeArray(out, u32_written, recovered, input.size());
+    size_t u32_processed = new_out - out;
+    decompressed_data.resize(input.size());
+    REQUIRE(decompressed_data == input);
+    REQUIRE(u32_written == u32_processed);
+    aligned_free(out);
+}
+
+template <typename t_compressor> void test_method_model_allone()
+{
+    SECTION("all ones")
+    {
+        SECTION("1000 elements")
+        {
+            std::vector<uint32_t> data(1000, 1);
+            REQUIRE(data.size() == 1000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("10000 elements")
+        {
+            std::vector<uint32_t> data(10000, 1);
+            REQUIRE(data.size() == 10000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("100000 elements")
+        {
+            std::vector<uint32_t> data(100000, 1);
+            REQUIRE(data.size() == 100000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("1000000 elements")
+        {
+            std::vector<uint32_t> data(1000000, 1);
+            REQUIRE(data.size() == 1000000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+    }
+}
+
+template <typename t_compressor> void test_method_model_randsmall()
+{
+    SECTION("uniform random small values")
+    {
+        std::uniform_int_distribution<uint32_t> d(1, 255);
+        SECTION("1000 elements")
+        {
+            auto data = generate_random_data(d, 1000);
+            REQUIRE(data.size() == 1000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("10000 elements")
+        {
+            auto data = generate_random_data(d, 10000);
+            REQUIRE(data.size() == 10000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("100000 elements")
+        {
+            auto data = generate_random_data(d, 100000);
+            REQUIRE(data.size() == 100000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("1000000 elements")
+        {
+            auto data = generate_random_data(d, 1000000);
+            REQUIRE(data.size() == 1000000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+    }
+}
+
+template <typename t_compressor> void test_method_model_randlarge()
+{
+    SECTION("uniform random large values")
+    {
+        std::uniform_int_distribution<uint32_t> d(1, 1 << 23);
+        SECTION("1000 elements")
+        {
+            auto data = generate_random_data(d, 1000);
+            REQUIRE(data.size() == 1000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("10000 elements")
+        {
+            auto data = generate_random_data(d, 10000);
+            REQUIRE(data.size() == 10000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("100000 elements")
+        {
+            auto data = generate_random_data(d, 100000);
+            REQUIRE(data.size() == 100000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("1000000 elements")
+        {
+            auto data = generate_random_data(d, 1000000);
+            REQUIRE(data.size() == 1000000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+    }
+}
+
+template <typename t_compressor> void test_method_model_geom()
+{
+    SECTION("geometric 0.001")
+    {
+        std::geometric_distribution<> d(0.1);
+        SECTION("1000 elements")
+        {
+            auto data = generate_random_data(d, 1000);
+            REQUIRE(data.size() == 1000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("10000 elements")
+        {
+            auto data = generate_random_data(d, 10000);
+            REQUIRE(data.size() == 10000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("100000 elements")
+        {
+            auto data = generate_random_data(d, 100000);
+            REQUIRE(data.size() == 100000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("1000000 elements")
+        {
+            auto data = generate_random_data(d, 1000000);
+            REQUIRE(data.size() == 1000000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+    }
+    SECTION("geometric 0.01")
+    {
+        std::geometric_distribution<> d(0.1);
+        SECTION("1000 elements")
+        {
+            auto data = generate_random_data(d, 1000);
+            REQUIRE(data.size() == 1000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("10000 elements")
+        {
+            auto data = generate_random_data(d, 10000);
+            REQUIRE(data.size() == 10000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("100000 elements")
+        {
+            auto data = generate_random_data(d, 100000);
+            REQUIRE(data.size() == 100000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("1000000 elements")
+        {
+            auto data = generate_random_data(d, 1000000);
+            REQUIRE(data.size() == 1000000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+    }
+    SECTION("geometric 0.1")
+    {
+        std::geometric_distribution<> d(0.1);
+        SECTION("1000 elements")
+        {
+            auto data = generate_random_data(d, 1000);
+            REQUIRE(data.size() == 1000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("10000 elements")
+        {
+            auto data = generate_random_data(d, 10000);
+            REQUIRE(data.size() == 10000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("100000 elements")
+        {
+            auto data = generate_random_data(d, 100000);
+            REQUIRE(data.size() == 100000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+        SECTION("1000000 elements")
+        {
+            auto data = generate_random_data(d, 1000000);
+            REQUIRE(data.size() == 1000000);
+            model_encode_and_decode<t_compressor>(data);
+        }
+    }
+}
+
+TEST_CASE("encode_and_decode geom B=128", "[ans-packed]")
+{
+    test_method_model_geom<ans_packed<128> >();
+}
+
+TEST_CASE("encode_and_decode allone B=128", "[ans-packed]")
+{
+    test_method_model_allone<ans_packed<128> >();
+}
+
+TEST_CASE("encode_and_decode randsmall B=128", "[ans-packed]")
+{
+    test_method_model_randsmall<ans_packed<128> >();
+}
+
+TEST_CASE("encode_and_decode geom B=256", "[ans-packed]")
+{
+    test_method_model_geom<ans_packed<256> >();
+}
+
+TEST_CASE("encode_and_decode allone B=256", "[ans-packed]")
+{
+    test_method_model_allone<ans_packed<256> >();
+}
+
+TEST_CASE("encode_and_decode randsmall B=256", "[ans-packed]")
+{
+    test_method_model_randsmall<ans_packed<256> >();
+}
+
+TEST_CASE("encode_and_decode randlarge B=128", "[ans-packed]")
+{
+    test_method_model_randlarge<ans_packed<128> >();
+}

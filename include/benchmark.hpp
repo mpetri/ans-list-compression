@@ -58,7 +58,7 @@ encoding_stats compress_lists(const list_data& ld, std::string out_prefix,
                 if (i == 0) {
                     std::ofstream ofs("./list_data.txt");
                     for (size_t j = 0; j < list_size; j++) {
-                        ofs << in[j] << std::endl;
+                        ofs << std::to_string(in[j]) << std::endl;
                     }
                     exit(EXIT_SUCCESS);
                 }

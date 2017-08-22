@@ -258,9 +258,9 @@ public:
     }
     void write_plain(std::ostream& os) const
     {
-        os << total_max_val << std::endl;
+        os << std::to_string(total_max_val) << std::endl;
         for (size_t i = 0; i < norm_mags.size(); i++) {
-            os << norm_mags[i] << " ";
+            os << std::to_string(norm_mags[i]) << " ";
         }
         os << std::endl;
     }

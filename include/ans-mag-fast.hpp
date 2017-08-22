@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include "ans-constants.hpp"
 #include "ans-mag.hpp"
 #include "ans-util.hpp"
@@ -113,6 +115,7 @@ public:
         const auto& entry = enc_table[num];
         uint64_t f = entry.freq;
         uint64_t b = entry.base;
+
         // (1) normalize
         while (state >= entry.SUB) {
             --out8;
@@ -121,7 +124,10 @@ public:
         }
 
         // (2) transform state
-        uint64_t next = ((state / f) * M) + (state % f) + b;
+        auto state_divmod_f = lldiv(state, f);
+        uint64_t state_div_f = state_divmod_f.quot;
+        uint64_t state_mod_f = state_divmod_f.rem;
+        uint64_t next = (state_div_f << log2_M) + state_mod_f + b;
         return next;
     }
 

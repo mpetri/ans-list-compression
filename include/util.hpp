@@ -364,6 +364,9 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
 
     std::string docs_file = ds2i_prefix + ".docs";
     auto df = fopen_or_fail(docs_file, "rb");
+
+    size_t postings_discarded = 0;
+    size_t lists_discarded = 0;
     {
         // (1) skip the numdocs list
         read_uint32_list(df, false);
@@ -376,9 +379,13 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
                 break;
 
             // remove non-full parts as we read things
-            if (remove_nonfull && n < block_size)
+            if (remove_nonfull && n < block_size) {
+                postings_discarded += n;
+                lists_discarded++;
                 continue;
+            }
             if (remove_nonfull && n % block_size != 0) {
+                postings_discarded += n % block_size;
                 n = n - (n % block_size);
             }
 
@@ -433,6 +440,8 @@ ds2i_data read_all_input_ds2i(std::string ds2i_prefix, bool remove_nonfull)
     fprintf(stderr, "num_docs = %u\n", ds2i.num_docs);
     fprintf(stderr, "num_lists = %lu\n", ds2i.freqs.num_lists);
     fprintf(stderr, "num_postings = %lu\n", ds2i.freqs.num_postings);
+    fprintf(stderr, "postings_discarded = %lu\n", postings_discarded);
+    fprintf(stderr, "lists_discarded = %lu\n", lists_discarded);
 
     return ds2i;
 }

@@ -116,13 +116,17 @@ struct list_data {
         for (size_t i = 0; i < nl; i++)
             list_ptrs[i] = nullptr;
     }
-    ~list_data()
+
+    void clear()
     {
         for (size_t i = 0; i < num_lists; i++)
-            if (list_ptrs[i]) {
+            if (list_ptrs[i] != nullptr) {
                 aligned_free(list_ptrs[i]);
+                list_ptrs[i] = nullptr;
             }
     }
+
+    ~list_data() { clear(); }
 };
 
 struct ds2i_data {

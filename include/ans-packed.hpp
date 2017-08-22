@@ -13,12 +13,13 @@ template <uint32_t t_bs = 8> struct ans_packed {
 private:
     std::vector<ans_mag_model_small> models_small;
     std::vector<ans_mag_model_fast> models_fast;
-    uint8_t pick_model(const uint32_t* in, size_t n)
+    inline uint8_t pick_model(const uint32_t* in, size_t n)
     {
-        uint8_t max_mag = 0;
+        uint32_t max_val = 0;
         for (size_t i = 0; i < n; i++) {
-            max_mag = std::max(max_mag, ans_magnitude(in[i]));
+            max_val = std::max(max_val, in[i]);
         }
+        uint8_t max_mag = ans_magnitude(max_val);
         return constants::MAG2SEL[max_mag];
     }
 
@@ -36,6 +37,7 @@ public:
             mt.fill(0);
 
         std::vector<uint32_t> max_vals(constants::NUM_MAGS, 0);
+        std::vector<uint8_t> mags_in_block(t_bs);
         for (size_t i = 0; i < input.num_lists; i++) {
             const auto& cur_list = input.list_ptrs[i];
             size_t n = input.list_sizes[i];
@@ -50,12 +52,19 @@ public:
                 if (j + 1 == num_blocks)
                     block_size = last_block_size;
 
-                auto model_id = pick_model(cur_list + block_offset, block_size);
+                uint32_t max_val_in_block = 0;
+                for (size_t k = 0; k < block_size; k++) {
+                    uint32_t num = cur_list[block_offset + k];
+                    max_val_in_block = std::max(num, max_val_in_block);
+                    mags_in_block[k] = ans_magnitude(num);
+                }
+                uint8_t max_mag = ans_magnitude(max_val_in_block);
+                auto m_id = constants::MAG2SEL[max_mag];
+                max_vals[m_id] = std::max(max_val_in_block, max_vals[m_id]);
                 for (size_t k = 0; k < block_size; k++) {
                     uint32_t num = cur_list[block_offset + k];
                     uint8_t mag = ans_magnitude(num);
-                    max_vals[model_id] = std::max(num, max_vals[model_id]);
-                    mags[model_id][mag]++;
+                    mags[m_id][mags_in_block[k]]++;
                 }
             }
         }

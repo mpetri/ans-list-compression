@@ -184,14 +184,6 @@ public:
         uint64_t state_mod_M = state & mask_M;
         uint8_t boff = find_mag(state_mod_M);
         uint8_t state_mag = dbase[boff].mag;
-        // std::cout << "state_mod_M = " << state_mod_M << std::endl;
-        // std::cout << "dbase = ";
-        // for (size_t i = 0; i < dbase.size(); i++) {
-        //     std::cout << "<base=" << dbase[i].value << ",mag=" << i << ">";
-        // }
-        // std::cout << std::endl;
-        // std::cout << "boff=" << (int)boff << std::endl;
-        // std::cout << "state_mag = " << (int)state_mag << std::endl;
         uint32_t f = nfreq[state_mag];
         uint64_t mag_offset = (state_mod_M - dbase[boff].value);
         uint64_t offset = mag_offset % f;

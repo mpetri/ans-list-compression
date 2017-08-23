@@ -12,10 +12,11 @@ struct mag_enc_table_entry {
     uint32_t SUB;
 };
 
+#pragma pack(1)
 struct mag_dec_table_entry {
-    uint32_t freq;
-    uint64_t offset;
-    uint32_t sym;
+    uint64_t freq : 21;
+    uint64_t offset : 21;
+    uint16_t sym : 16;
 };
 
 struct ans_mag_model_fast {
@@ -28,6 +29,7 @@ public:
     uint64_t norm_lower_bound = 0;
     std::vector<mag_dec_table_entry> dec_table;
     uint64_t total_max_val = 0;
+    uint64_t bytes_per_dec_entry = 0;
 
 public:
     template <class t_stream> ans_mag_model_fast(t_stream& is)
@@ -94,6 +96,16 @@ public:
         init_model();
     }
 
+    void append_packed_dec_entry(uint64_t sym, uint64_t freq, uint64_t offset)
+    {
+        auto cur_offset = dec_table.size();
+        dec_table.resize(dec_table.size() + bytes_per_dec_entry + 8);
+        uint64_t* cur_u64_ptr = (uint64_t*)(dec_table.data() + cur_offset);
+        uint64_t cur_u64_word = *cur_u64_ptr;
+
+        *cur_u64_ptr = cur_u64_word;
+    }
+
     void init_model()
     {
         // (1) allocate space
@@ -130,7 +142,7 @@ public:
         for (size_t j = 1; j < enc_table.size(); j++) {
             auto cur_freq = enc_table[j].freq;
             for (size_t k = 0; k < cur_freq; k++) {
-                dec_table[base + k].sym = j;
+                dec_table[base + k].sym = (j - 1);
                 dec_table[base + k].freq = cur_freq;
                 dec_table[base + k].offset = k;
             }
@@ -240,7 +252,7 @@ public:
             state = (state << constants::OUTPUT_BASE_LOG2) | uint64_t(new_byte);
             enc_size--;
         }
-        return sym;
+        return sym + 1;
     }
     uint64_t init_decoder(const uint8_t*& in8, size_t& enc_size) const
     {

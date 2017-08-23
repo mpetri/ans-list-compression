@@ -12,12 +12,13 @@ struct mag_enc_table_entry {
     uint32_t SUB;
 };
 
-#pragma pack(1)
+#pragma pack(push, 1)
 struct mag_dec_table_entry {
     uint64_t freq : 12;
     uint64_t offset : 12;
     uint64_t sym : 8;
 };
+#pragma pack(pop)
 
 struct ans_mag_model_fast {
 public:

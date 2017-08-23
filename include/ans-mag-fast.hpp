@@ -16,7 +16,7 @@ struct mag_enc_table_entry {
 struct mag_dec_table_entry {
     uint64_t freq : 21;
     uint64_t offset : 21;
-    uint16_t sym : 16;
+    uint64_t sym : 16;
 };
 
 struct ans_mag_model_fast {
@@ -29,7 +29,6 @@ public:
     uint64_t norm_lower_bound = 0;
     std::vector<mag_dec_table_entry> dec_table;
     uint64_t total_max_val = 0;
-    uint64_t bytes_per_dec_entry = 0;
 
 public:
     template <class t_stream> ans_mag_model_fast(t_stream& is)
@@ -94,16 +93,6 @@ public:
 
         // (2) init the model params
         init_model();
-    }
-
-    void append_packed_dec_entry(uint64_t sym, uint64_t freq, uint64_t offset)
-    {
-        auto cur_offset = dec_table.size();
-        dec_table.resize(dec_table.size() + bytes_per_dec_entry + 8);
-        uint64_t* cur_u64_ptr = (uint64_t*)(dec_table.data() + cur_offset);
-        uint64_t cur_u64_word = *cur_u64_ptr;
-
-        *cur_u64_ptr = cur_u64_word;
     }
 
     void init_model()

@@ -267,13 +267,28 @@ public:
         for (size_t j = 0; j < num_blocks; j++) {
             auto model_id = block_models[j];
             size_t block_size = t_bs;
-            if (j + 1 == num_blocks)
+            if (last_block_size != t_bs && j + 1 == num_blocks) {
                 block_size = last_block_size;
+                if (model_id == 0) {
+                    for (size_t i = 0; i < block_size; i++) {
+                        *out++ = 1;
+                    }
+                    continue;
+                }
+            }
 
             if (model_id == 0) { // uniform block
-                const auto uptr = uniform_block.data();
-                memcpy(out, uptr, block_size * sizeof(uint32_t));
-                out += block_size;
+                for (size_t i = 0; i < block_size; i += 8) {
+                    out[0] = 1;
+                    out[1] = 1;
+                    out[2] = 1;
+                    out[3] = 1;
+                    out[4] = 1;
+                    out[5] = 1;
+                    out[6] = 1;
+                    out[7] = 1;
+                    out += 8;
+                }
                 continue;
             }
 

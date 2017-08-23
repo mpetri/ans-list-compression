@@ -153,17 +153,14 @@ public:
 
         // (1) normalize
         while (state >= entry.SUB) {
-            // std::cout << "output byte " << (int)(state & 0xFF) << std::endl;
             --out8;
             *out8 = (uint8_t)(state & 0xFF);
             state = state >> constants::OUTPUT_BASE_LOG2;
         }
 
         // (2) transform state
-        auto state_divmod_f = lldiv(state, f);
-        uint64_t state_div_f = state_divmod_f.quot;
-        uint64_t state_mod_f = state_divmod_f.rem;
-        uint64_t next = (state_div_f << log2_M) + state_mod_f + b;
+        uint64_t q = state / f;
+        uint64_t next = ( (q) << log2_M) + (state - (q*f)) + b;
         return next;
     }
 

@@ -111,7 +111,10 @@ public:
             cumsum += (max_val - min_val + 1) * nfreq[i];
         }
         M = cumsum;
-        norm_lower_bound = constants::OUTPUT_BASE * M;
+        norm_lower_bound = constants::NORM_LOWER_BOUND;
+        if (norm_lower_bound < M) {
+            norm_lower_bound = M;
+        }
         for (size_t i = 0; i <= norm_mags.size(); i++) {
             SUB[i]
                 = ((norm_lower_bound / M) * constants::OUTPUT_BASE) * nfreq[i];

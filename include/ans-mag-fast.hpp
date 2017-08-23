@@ -113,7 +113,10 @@ public:
             }
         }
         M = cumsum;
-        norm_lower_bound = constants::OUTPUT_BASE * M;
+        norm_lower_bound = constants::NORM_LOWER_BOUND;
+        if (norm_lower_bound < M) {
+            norm_lower_bound = M;
+        }
         for (size_t j = 1; j < enc_table.size(); j++) {
             enc_table[j].SUB = ((norm_lower_bound / M) * constants::OUTPUT_BASE)
                 * enc_table[j].freq;
@@ -146,6 +149,7 @@ public:
 
         // (1) normalize
         while (state >= entry.SUB) {
+            // std::cout << "output byte " << (int)(state & 0xFF) << std::endl;
             --out8;
             *out8 = (uint8_t)(state & 0xFF);
             state = state >> constants::OUTPUT_BASE_LOG2;
@@ -233,6 +237,7 @@ public:
         state = f * (state >> log2_M) + entry.offset;
         while (enc_size && state < norm_lower_bound) {
             uint8_t new_byte = *in8++;
+            // std::cout << "read byte " << (int)new_byte << std::endl;
             state = (state << constants::OUTPUT_BASE_LOG2) | uint64_t(new_byte);
             enc_size--;
         }

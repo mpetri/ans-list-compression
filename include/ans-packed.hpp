@@ -191,6 +191,7 @@ public:
         static std::array<uint8_t, t_bs * 8> tmp_out_buf;
         for (size_t j = 0; j < num_blocks; j++) {
             auto model_id = block_models[j];
+            // std::cout << "E model_id = " << (int)model_id << std::endl;
             size_t block_offset = j * t_bs;
             size_t block_size = t_bs;
             if (j + 1 == num_blocks)
@@ -204,26 +205,33 @@ public:
             auto out_ptr = tmp_out_buf.data() + tmp_out_buf.size() - 1;
             auto out_start = out_ptr;
             if (model_id <= constants::MAX_FAST_SEL) {
+                // std::cout << "E model_fast" << std::endl;
                 const auto& cur_model = models_fast[model_id];
                 uint64_t state = constants::ANS_START_STATE;
                 for (size_t k = 0; k < block_size; k++) {
                     uint32_t num = in[block_offset + block_size - k - 1];
+                    // std::cout << "S=" << state << " N=" << num << " -> ";
                     state = cur_model.encode(state, num, out_ptr);
+                    // std::cout << state << std::endl;
                 }
                 cur_model.flush(state, out_ptr);
             } else {
+                // std::cout << "E model_small" << std::endl;
                 const auto& cur_model
                     = models_small[model_id - models_fast.size()];
                 uint64_t state = constants::ANS_START_STATE;
                 for (size_t k = 0; k < block_size; k++) {
                     uint32_t num = in[block_offset + block_size - k - 1];
+                    // std::cout << "S=" << state << " N=" << num << " -> ";
                     state = cur_model.encode(state, num, out_ptr);
+                    // std::cout << state << std::endl;
                 }
                 cur_model.flush(state, out_ptr);
             }
 
             // output the encoding
             size_t enc_size = (out_start - out_ptr);
+            // std::cout << "E enc_size = " << enc_size << std::endl;
             ans_vbyte_encode_u64(out8, enc_size);
             memcpy(out8, out_ptr, enc_size);
 
@@ -263,6 +271,7 @@ public:
         // (2) perform actual decoding
         for (size_t j = 0; j < num_blocks; j++) {
             auto model_id = block_models[j];
+            // std::cout << "D model_id = " << (int)model_id << std::endl;
             size_t block_size = t_bs;
             if (j + 1 == num_blocks)
                 block_size = last_block_size;
@@ -274,20 +283,29 @@ public:
                 continue;
             }
 
+            size_t enc_size = ans_vbyte_decode_u64(in8);
+            // std::cout << "D enc_size = " << enc_size << std::endl;
             if (model_id <= constants::MAX_FAST_SEL) {
                 const auto& model = models_fast[model_id];
-                size_t enc_size = ans_vbyte_decode_u64(in8);
+                // std::cout << "D models_fast" << std::endl;
                 uint64_t state = model.init_decoder(in8, enc_size);
                 for (size_t k = 0; k < block_size; k++) {
+                    // std::cout << "S=" << state << " -> ";
                     *out++ = model.decode(state, in8, enc_size);
+                    // std::cout << "S=" << state << " N=" << *(out - 1)
+                    //           << std::endl;
                 }
             } else {
                 const auto& model = models_small[model_id - models_fast.size()];
-                size_t enc_size = ans_vbyte_decode_u64(in8);
+                // std::cout << "D model_small" << std::endl;
                 uint64_t state = model.init_decoder(in8, enc_size);
                 for (size_t k = 0; k < block_size; k++) {
+                    // std::cout << "S=" << state << " -> ";
                     *out++ = model.decode(state, in8, enc_size);
+                    // std::cout << "S=" << state << " N=" << *(out - 1)
+                    //           << std::endl;
                 }
+                // std::cout << "D final enc_size" << enc_size << std::endl;
             }
         }
         size_t rb = in8 - initin8;

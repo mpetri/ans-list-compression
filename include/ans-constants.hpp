@@ -17,4 +17,5 @@ const std::array<uint8_t, MAX_MAG + 1> MAG2SEL{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9,
 const uint64_t TOPFREQ = 1048576;
 const uint64_t MAXSTACKSIZE = 10000000;
 const uint64_t MAX_FAST_SEL = 10;
+const uint64_t NORM_LOWER_BOUND = 1ULL << 24;
 }

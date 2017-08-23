@@ -605,16 +605,9 @@ TEST_CASE("encode_and_decode from file", "[ans-packed]")
     std::vector<uint32_t> input;
     { // (2) read test data
         std::ifstream ifs("../data/test_list_data.txt");
-        size_t skip = 19584;
         for (std::string line; std::getline(ifs, line);) {
             uint32_t x = std::stoul(line);
-            if (skip != 0) {
-                skip--;
-            } else {
-                input.push_back(x);
-            }
-            if (input.size() == 128)
-                break;
+            input.push_back(x);
         }
     }
     // compress
@@ -631,14 +624,7 @@ TEST_CASE("encode_and_decode from file", "[ans-packed]")
     auto new_out = comp.decodeArray(out, u32_written, recovered, input.size());
     size_t u32_processed = new_out - out;
     decompressed_data.resize(input.size());
-    for (size_t i = 0; i < input.size(); i++) {
-        if (decompressed_data[i] != input[i]) {
-            std::cerr << "ERROR at i=" << i << "/" << input.size()
-                      << " is=" << decompressed_data[i]
-                      << " expected=" << input[i] << std::endl;
-        }
-        REQUIRE(decompressed_data[i] == input[i]);
-    }
+    REQUIRE(decompressed_data == input);
     REQUIRE(u32_written == u32_processed);
     aligned_free(out);
 }

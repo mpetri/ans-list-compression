@@ -13,6 +13,7 @@ template <uint32_t t_bs = 8> struct ans_packed {
 private:
     std::vector<ans_mag_model_small> models_small;
     std::vector<ans_mag_model_fast> models_fast;
+    std::vector<uint32_t> uniform_block;
     inline uint8_t pick_model(const uint32_t* in, size_t n)
     {
         uint32_t max_val = 0;
@@ -27,6 +28,14 @@ public:
     bool required_increasing = false;
     std::string name() { return "ans_packed_B" + std::to_string(t_bs); }
     const uint32_t bs = t_bs;
+
+public:
+    ans_packed()
+    {
+        uniform_block.resize(t_bs);
+        for (size_t i = 0; i < t_bs; i++)
+            uniform_block[i] = 1;
+    }
 
 public:
     const uint32_t* load_binary(const uint32_t* in)
@@ -100,7 +109,6 @@ public:
             mt.fill(0);
 
         std::vector<uint32_t> max_vals(constants::NUM_MAGS, 0);
-        std::vector<uint8_t> mags_in_block(t_bs);
         for (size_t i = 0; i < input.num_lists; i++) {
             const auto& cur_list = input.list_ptrs[i];
             size_t n = input.list_sizes[i];
@@ -119,14 +127,15 @@ public:
                 for (size_t k = 0; k < block_size; k++) {
                     uint32_t num = cur_list[block_offset + k];
                     max_val_in_block = std::max(num, max_val_in_block);
-                    mags_in_block[k] = ans_magnitude(num);
                 }
                 uint8_t max_mag = ans_magnitude(max_val_in_block);
+                if (max_val_in_block == 1)
+                    continue;
                 auto m_id = constants::MAG2SEL[max_mag];
                 max_vals[m_id] = std::max(max_val_in_block, max_vals[m_id]);
                 for (size_t k = 0; k < block_size; k++) {
                     uint32_t num = cur_list[block_offset + k];
-                    mags[m_id][mags_in_block[k]]++;
+                    mags[m_id][ans_magnitude(num)]++;
                 }
             }
         }
@@ -186,12 +195,9 @@ public:
         }
 
         // (3) perform actual encoding
-        static int list_id = 0;
-        list_id++;
         static std::array<uint8_t, t_bs * 8> tmp_out_buf;
         for (size_t j = 0; j < num_blocks; j++) {
             auto model_id = block_models[j];
-            // std::cout << "E model_id = " << (int)model_id << std::endl;
             size_t block_offset = j * t_bs;
             size_t block_size = t_bs;
             if (j + 1 == num_blocks)
@@ -204,34 +210,26 @@ public:
             // reverse encode the block using the selected ANS model
             auto out_ptr = tmp_out_buf.data() + tmp_out_buf.size() - 1;
             auto out_start = out_ptr;
+            uint64_t state = constants::ANS_START_STATE;
             if (model_id <= constants::MAX_FAST_SEL) {
-                // std::cout << "E model_fast" << std::endl;
                 const auto& cur_model = models_fast[model_id];
-                uint64_t state = constants::ANS_START_STATE;
                 for (size_t k = 0; k < block_size; k++) {
                     uint32_t num = in[block_offset + block_size - k - 1];
-                    // std::cout << "S=" << state << " N=" << num << " -> ";
                     state = cur_model.encode(state, num, out_ptr);
-                    // std::cout << state << std::endl;
                 }
                 cur_model.flush(state, out_ptr);
             } else {
-                // std::cout << "E model_small" << std::endl;
                 const auto& cur_model
                     = models_small[model_id - models_fast.size()];
-                uint64_t state = constants::ANS_START_STATE;
                 for (size_t k = 0; k < block_size; k++) {
                     uint32_t num = in[block_offset + block_size - k - 1];
-                    // std::cout << "S=" << state << " N=" << num << " -> ";
                     state = cur_model.encode(state, num, out_ptr);
-                    // std::cout << state << std::endl;
                 }
                 cur_model.flush(state, out_ptr);
             }
 
             // output the encoding
             size_t enc_size = (out_start - out_ptr);
-            // std::cout << "E enc_size = " << enc_size << std::endl;
             ans_vbyte_encode_u64(out8, enc_size);
             memcpy(out8, out_ptr, enc_size);
 
@@ -265,47 +263,33 @@ public:
             block_models[i + 1] = packed_block_types & 15;
         }
 
-        int list_id = 0;
-        list_id++;
-
         // (2) perform actual decoding
         for (size_t j = 0; j < num_blocks; j++) {
             auto model_id = block_models[j];
-            // std::cout << "D model_id = " << (int)model_id << std::endl;
             size_t block_size = t_bs;
             if (j + 1 == num_blocks)
                 block_size = last_block_size;
 
             if (model_id == 0) { // uniform block
-                for (size_t k = 0; k < block_size; k++) {
-                    *out++ = 1;
-                }
+                const auto uptr = uniform_block.data();
+                memcpy(out, uptr, block_size * sizeof(uint32_t));
+                out += block_size;
                 continue;
             }
 
             size_t enc_size = ans_vbyte_decode_u64(in8);
-            // std::cout << "D enc_size = " << enc_size << std::endl;
             if (model_id <= constants::MAX_FAST_SEL) {
                 const auto& model = models_fast[model_id];
-                // std::cout << "D models_fast" << std::endl;
                 uint64_t state = model.init_decoder(in8, enc_size);
                 for (size_t k = 0; k < block_size; k++) {
-                    // std::cout << "S=" << state << " -> ";
                     *out++ = model.decode(state, in8, enc_size);
-                    // std::cout << "S=" << state << " N=" << *(out - 1)
-                    //           << std::endl;
                 }
             } else {
                 const auto& model = models_small[model_id - models_fast.size()];
-                // std::cout << "D model_small" << std::endl;
                 uint64_t state = model.init_decoder(in8, enc_size);
                 for (size_t k = 0; k < block_size; k++) {
-                    // std::cout << "S=" << state << " -> ";
                     *out++ = model.decode(state, in8, enc_size);
-                    // std::cout << "S=" << state << " N=" << *(out - 1)
-                    //           << std::endl;
                 }
-                // std::cout << "D final enc_size" << enc_size << std::endl;
             }
         }
         size_t rb = in8 - initin8;

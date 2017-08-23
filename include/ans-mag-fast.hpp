@@ -237,7 +237,6 @@ public:
         state = f * (state >> log2_M) + entry.offset;
         while (enc_size && state < norm_lower_bound) {
             uint8_t new_byte = *in8++;
-            // std::cout << "read byte " << (int)new_byte << std::endl;
             state = (state << constants::OUTPUT_BASE_LOG2) | uint64_t(new_byte);
             enc_size--;
         }

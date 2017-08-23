@@ -6,11 +6,13 @@
 #include "ans-mag.hpp"
 #include "ans-util.hpp"
 
+#pragma pack(push, 1)
 struct mag_enc_table_entry {
-    uint32_t freq;
-    uint64_t base;
-    uint32_t SUB;
+    uint64_t freq : 16;
+    uint64_t base : 16;
+    uint64_t SUB : 32;
 };
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 struct mag_dec_table_entry {

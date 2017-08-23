@@ -14,9 +14,9 @@ struct mag_enc_table_entry {
 
 #pragma pack(1)
 struct mag_dec_table_entry {
-    uint64_t freq : 21;
-    uint64_t offset : 21;
-    uint64_t sym : 16;
+    uint64_t freq : 12;
+    uint64_t offset : 12;
+    uint64_t sym : 8;
 };
 
 struct ans_mag_model_fast {

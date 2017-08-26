@@ -67,8 +67,8 @@ int main(int argc, char const* argv[])
         // run<op4<128> >(inputs.docids, out_prefix, col_name, "docids");
         // run<simple16>(inputs.docids, out_prefix, col_name, "docids");
         // run<interpolative>(inputs.docids, out_prefix, col_name, "docids");
-        // run<ans_simple>(inputs.docids, out_prefix, col_name, "docids");
-        run<ans_packed<128> >(docids, out_prefix, col_name, "docids");
+        run<ans_simple>(inputs.docids, out_prefix, col_name, "docids");
+        // run<ans_packed<128> >(docids, out_prefix, col_name, "docids");
         // run<ans_packed<256> >(inputs.docids, out_prefix, col_name, "docids");
         // run<ans_vbyte_split<4096> >(inputs.docids, out_prefix, col_name,
         // "docids");
@@ -83,7 +83,7 @@ int main(int argc, char const* argv[])
         // run<qmx>(inputs.freqs, out_prefix, col_name, "freqs");
         // run<vbyte>(inputs.freqs, out_prefix, col_name, "freqs");
         // run<op4<128> >(inputs.freqs, out_prefix, col_name, "freqs");
-        // run<simple16>(inputs.freqs, out_prefix, col_name, "freqs");
+        run<simple16>(inputs.freqs, out_prefix, col_name, "freqs");
         // run<interpolative>(inputs.freqs, out_prefix, col_name, "freqs");
         // run<ans_simple>(inputs.freqs, out_prefix, col_name, "freqs");
         // run<ans_packed<256> >(inputs.freqs, out_prefix, col_name, "freqs");
@@ -91,7 +91,7 @@ int main(int argc, char const* argv[])
         // "freqs");
         // run<ans_vbyte_single<4096> >(inputs.freqs, out_prefix, col_name,
         // "freqs");
-        run<ans_packed<128> >(freqs, out_prefix, col_name, "freqs");
+        // run<ans_packed<128> >(freqs, out_prefix, col_name, "freqs");
     }
 
     return EXIT_SUCCESS;

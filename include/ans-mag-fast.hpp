@@ -160,7 +160,7 @@ public:
 
         // (2) transform state
         uint64_t q = state / f;
-        uint64_t next = ( (q) << log2_M) + (state - (q*f)) + b;
+        uint64_t next = ((q) << log2_M) + (state - (q * f)) + b;
         return next;
     }
 
@@ -178,8 +178,9 @@ public:
                 break;
             uint64_t f = entry.freq;
             uint64_t b = entry.base + 1;
-            uint64_t r = state % f;
-            uint64_t j = (state - r) / f;
+            uint64_t q = state / f;
+            uint64_t r = state - (q * f);
+            uint64_t j = q;
             uint64_t new_state = 0;
             if (__builtin_umull_overflow(j, M, &new_state)) {
                 break;
@@ -195,21 +196,6 @@ public:
         return { num_encoded, state };
     }
 
-    uint64_t encode_u64(const uint32_t* in, size_t n) const
-    {
-        uint64_t state = 0;
-        for (size_t i = 0; i < n; i++) {
-            auto num = in[i];
-            const auto& entry = enc_table[num];
-            uint64_t f = entry.freq;
-            uint64_t b = entry.base + 1;
-            uint64_t r = state % f;
-            uint64_t j = (state - r) / f;
-            state = j * M + r + b;
-        }
-        return state;
-    }
-
     void decode_u64(uint64_t state, uint32_t*& out) const
     {
         static std::vector<uint32_t> stack(constants::MAXSTACKSIZE);
@@ -220,7 +206,7 @@ public:
             const auto& entry = dec_table[r - 1];
             uint64_t f = entry.freq;
             uint64_t b = entry.offset;
-            stack[num_decoded++] = entry.sym;
+            stack[num_decoded++] = entry.sym + 1;
             state = f * j + b;
         }
         for (size_t j = 0; j < num_decoded; j++) {

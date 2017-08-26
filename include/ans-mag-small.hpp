@@ -161,21 +161,39 @@ public:
         return next;
     }
 
-    uint64_t encode_u64(const uint32_t* in, size_t n) const
+    std::pair<uint64_t, uint64_t> try_encode_u64(
+        const uint32_t* in, size_t n) const
     {
         uint64_t state = 0;
+        uint64_t num_encoded = 0;
         for (size_t i = 0; i < n; i++) {
             auto num = in[i];
+            if (num > total_max_val)
+                break;
+
             uint8_t mag = ans_magnitude(num);
             uint64_t min_val = ans_min_val_in_mag(mag);
             uint64_t vals_before = num - min_val;
             uint64_t f = nfreq[mag];
-            uint64_t b = base[mag] + (f * vals_before);
-            uint64_t r = state % f;
-            uint64_t j = (state - r) / f;
-            state = j * M + r + b;
+            if (f == 0)
+                break;
+            uint64_t b = base[mag] + (f * vals_before) + 1;
+            uint64_t q = state / f;
+            uint64_t r = state - (q * f);
+            uint64_t j = q;
+            uint64_t new_state = 0;
+            if (__builtin_umull_overflow(j, M, &new_state)) {
+                break;
+            }
+            uint64_t tmp = r + b;
+            uint64_t new_state_2 = 0;
+            if (__builtin_uaddl_overflow(new_state, tmp, &new_state_2)) {
+                break;
+            }
+            state = new_state_2;
+            num_encoded++;
         }
-        return state;
+        return { num_encoded, state };
     }
 
     uint8_t find_mag(uint64_t state_mod_M) const

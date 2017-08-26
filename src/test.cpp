@@ -595,9 +595,43 @@ template <typename t_compressor> void test_method_model_geom()
 //     }
 // }
 
-TEST_CASE("encode_and_decode from file", "[ans-packed]")
+TEST_CASE("encode_and_decode from file ans-packed", "[ans-packed]")
 {
     ans_packed<128> comp;
+    { // (1) load model
+        std::ifstream ifs("../data/test_ans_packed_model.txt");
+        comp.load_plain(ifs);
+    }
+    std::vector<uint32_t> input;
+    { // (2) read test data
+        std::ifstream ifs("../data/test_list_data.txt");
+        for (std::string line; std::getline(ifs, line);) {
+            uint32_t x = std::stoul(line);
+            input.push_back(x);
+        }
+    }
+    // compress
+    auto out = reinterpret_cast<uint32_t*>(
+        aligned_alloc(16, input.size() * 2 * sizeof(uint32_t)));
+    const uint32_t* in = input.data();
+    size_t u32_written = input.size() * 2;
+    comp.encodeArray(in, input.size(), out, u32_written);
+    REQUIRE(u32_written < input.size() * 2);
+
+    // decompress
+    std::vector<uint32_t> decompressed_data(input.size() + 1024);
+    uint32_t* recovered = decompressed_data.data();
+    auto new_out = comp.decodeArray(out, u32_written, recovered, input.size());
+    size_t u32_processed = new_out - out;
+    decompressed_data.resize(input.size());
+    REQUIRE(decompressed_data == input);
+    REQUIRE(u32_written == u32_processed);
+    aligned_free(out);
+}
+
+TEST_CASE("encode_and_decode from file ans-simple", "[ans-simple]")
+{
+    ans_simple comp;
     { // (1) load model
         std::ifstream ifs("../data/test_ans_packed_model.txt");
         comp.load_plain(ifs);

@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "ans-mag-fast.hpp"
+#include "ans-mag-small.hpp"
 #include "ans-util.hpp"
 #include "util.hpp"
 
@@ -11,8 +12,6 @@ namespace constants {
 const uint64_t WINDOW = 65; /* should be odd */
 const uint64_t PAYLOADBITS = 64;
 }
-
-using ans_model_type = ans_mag_model_fast;
 
 struct enc_res {
     uint8_t model_id;
@@ -22,7 +21,8 @@ struct enc_res {
 
 struct ans_simple {
 private:
-    std::vector<ans_model_type> models;
+    std::vector<ans_mag_model_small> models_small;
+    std::vector<ans_mag_model_fast> models_fast;
 
 private:
     enc_res pick_model(const uint32_t* in, size_t n)
@@ -30,11 +30,20 @@ private:
         uint8_t best_model = 0;
         uint64_t best_span = 0;
         uint64_t best_word = 0;
-        for (size_t i = 0; i < models.size(); i++) {
-            const auto& m = models[i];
+        for (size_t i = 0; i < models_fast.size(); i++) {
+            const auto& m = models_fast[i];
             auto span_and_word = m.try_encode_u64(in, n);
             if (span_and_word.first > best_span) {
                 best_model = i;
+                best_span = span_and_word.first;
+                best_word = span_and_word.second;
+            }
+        }
+        for (size_t i = 0; i < models_small.size(); i++) {
+            const auto& m = models_small[i];
+            auto span_and_word = m.try_encode_u64(in, n);
+            if (span_and_word.first > best_span) {
+                best_model = i + models_fast.size();
                 best_span = span_and_word.first;
                 best_word = span_and_word.second;
             }
@@ -45,6 +54,69 @@ private:
 public:
     bool required_increasing = false;
     std::string name() { return "ans_simple"; }
+
+    const uint32_t* load_binary(const uint32_t* in)
+    {
+        auto initin8 = reinterpret_cast<const uint8_t*>(in);
+        auto in8 = initin8;
+        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast.emplace_back(ans_mag_model_fast(in8));
+            } else {
+                models_small.emplace_back(ans_mag_model_small(in8));
+            }
+        }
+        size_t pbytes = in8 - initin8;
+        if (pbytes % sizeof(uint32_t) != 0) {
+            pbytes += sizeof(uint32_t) - (pbytes % (sizeof(uint32_t)));
+        }
+        size_t u32s = pbytes / sizeof(uint32_t);
+        return in + u32s;
+    }
+    void store_binary(uint32_t* out, size_t& nvalue) const
+    {
+        auto initout8 = reinterpret_cast<uint8_t*>(out);
+        auto out8 = initout8;
+        size_t num_fast_models = 0;
+        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast[i].write(out8);
+                num_fast_models++;
+            } else {
+                models_small[i - num_fast_models].write(out8);
+            }
+        }
+
+        // (4) align to u32 boundary
+        size_t wb = out8 - initout8;
+        if (wb % sizeof(uint32_t) != 0) {
+            wb += sizeof(uint32_t) - (wb % (sizeof(uint32_t)));
+        }
+        nvalue = wb / sizeof(uint32_t);
+    }
+    void load_plain(std::ifstream& is)
+    {
+        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast.emplace_back(ans_mag_model_fast(is));
+            } else {
+                models_small.emplace_back(ans_mag_model_small(is));
+            }
+        }
+    }
+    void store_plain(std::ofstream& os) const
+    {
+        size_t num_fast_models = 0;
+        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast[i].write_plain(os);
+                num_fast_models++;
+            } else {
+                models_small[i - num_fast_models].write_plain(os);
+            }
+        }
+    }
+
 public:
     void init(const list_data& input, uint32_t* out, size_t& nvalue)
     {
@@ -156,40 +228,26 @@ public:
                         L[i][j] = 1;
                 }
             }
-            fprintf(stderr, "create model %lu\n", models.size());
-            models.emplace_back(L[i], maxv);
+            if (i <= constants::MAX_FAST_SEL) {
+                models_fast.emplace_back(L[i], maxv);
+            } else {
+                models_small.emplace_back(L[i], maxv);
+            }
         }
         fprintf(stderr, "create models done.\n");
 
         // (4) write out models
-        auto initout8 = reinterpret_cast<uint8_t*>(out);
-        auto out8 = initout8;
-        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            models[i].write(out8);
+        if (out != nullptr) {
+            store_binary(out, nvalue);
         }
-        // fprintf(stderr, "write models done.\n");
-
-        // (4) align to u32 boundary
-        size_t wb = out8 - initout8;
-        if (wb % sizeof(uint32_t) != 0) {
-            wb += sizeof(uint32_t) - (wb % (sizeof(uint32_t)));
-        }
-        nvalue = wb / sizeof(uint32_t);
     }
 
     const uint32_t* dec_init(const uint32_t* in)
     {
-        auto initin8 = reinterpret_cast<const uint8_t*>(in);
-        auto in8 = initin8;
-        for (uint8_t i = 0; i < constants::NUM_MAGS; i++) {
-            models.emplace_back(ans_model_type(in8));
-        }
-        size_t pbytes = in8 - initin8;
-        if (pbytes % sizeof(uint32_t) != 0) {
-            pbytes += sizeof(uint32_t) - (pbytes % (sizeof(uint32_t)));
-        }
-        size_t u32s = pbytes / sizeof(uint32_t);
-        return in + u32s;
+        std::cerr << "dec_init() START" << std::endl;
+        auto new_out = load_binary(in);
+        std::cerr << "dec_init() STOP" << std::endl;
+        return new_out;
     }
 
     void encodeArray(
@@ -223,6 +281,7 @@ public:
             uint8_t packed_selectors = (model_ids[i] << 4) + (model_ids[i + 1]);
             *out8++ = packed_selectors;
         }
+
         // (3a) write data
         auto out64 = reinterpret_cast<uint64_t*>(out8);
         for (size_t i = 0; i < words_written; i++) {
@@ -237,7 +296,7 @@ public:
         }
         nvalue = wb / sizeof(uint32_t);
     }
-    uint32_t* decodeArray(
+    const uint32_t* decodeArray(
         const uint32_t* in, const size_t len, uint32_t* out, size_t list_len)
     {
         // fprintf(stderr, "decodeArray START\n");
@@ -258,10 +317,23 @@ public:
         // (2) decode content
         auto in64 = reinterpret_cast<const uint64_t*>(in8);
         for (size_t i = 0; i < num_sels; i++) {
-            const auto& model = models[selectors[i]];
+            auto model_id = selectors[i];
             uint64_t state = *in64++;
-            model.decode_u64(state, out);
+            if (model_id <= constants::MAX_FAST_SEL) {
+                const auto& model = models_fast[model_id];
+                model.decode_u64(state, out);
+            } else {
+                const auto& model = models_small[model_id - models_fast.size()];
+                model.decode_u64(state, out);
+            }
         }
-        return out;
+
+        // (3) decode content
+        in8 = reinterpret_cast<const uint8_t*>(in64);
+        size_t rb = in8 - initin8;
+        if (rb % sizeof(uint32_t) != 0) {
+            rb += sizeof(uint32_t) - (rb % (sizeof(uint32_t)));
+        }
+        return reinterpret_cast<const uint32_t*>(initin8 + wb);
     }
 };

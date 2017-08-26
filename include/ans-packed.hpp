@@ -13,7 +13,6 @@ template <uint32_t t_bs = 8> struct ans_packed {
 private:
     std::vector<ans_mag_model_small> models_small;
     std::vector<ans_mag_model_fast> models_fast;
-    std::vector<uint32_t> uniform_block;
     inline uint8_t pick_model(const uint32_t* in, size_t n)
     {
         uint32_t max_val = 0;
@@ -28,14 +27,6 @@ public:
     bool required_increasing = false;
     std::string name() { return "ans_packed_B" + std::to_string(t_bs); }
     const uint32_t bs = t_bs;
-
-public:
-    ans_packed()
-    {
-        uniform_block.resize(t_bs);
-        for (size_t i = 0; i < t_bs; i++)
-            uniform_block[i] = 1;
-    }
 
 public:
     const uint32_t* load_binary(const uint32_t* in)

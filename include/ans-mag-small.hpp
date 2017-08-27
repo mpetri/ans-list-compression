@@ -217,8 +217,8 @@ public:
             uint8_t state_mag = dbase[boff].mag;
             uint32_t f = nfreq[state_mag];
             uint64_t mag_offset = (state_mod_M - dbase[boff].value);
-            uint64_t offset = mag_offset % f;
             uint64_t num_offset = mag_offset / f;
+            uint64_t offset = mag_offset - (num_offset * f);
             uint32_t num = ans_min_val_in_mag(state_mag) + num_offset;
             stack[num_decoded++] = num;
             state = f * j + offset;
